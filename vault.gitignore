@@ -1,0 +1,12 @@
+.state/
+.queue/
+.backups/
+__pycache__/
+*.pyc
+*.tmp
+.env
+.env.*
+auth.json
+*secret*
+*.local.json
+.obsidian/workspace*

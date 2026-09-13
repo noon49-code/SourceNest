@@ -1,0 +1,234 @@
+import importlib.util
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+import tempfile
+import unittest
+from unittest.mock import patch
+
+PACKAGE = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PACKAGE / "engine"))
+import beyin
+sys.path.insert(0, str(PACKAGE))
+import install
+
+
+class MemoryTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix="beyin-test-")
+        self.root = Path(self.temp.name) / "vault"
+        self.root.mkdir()
+        cfg = json.loads((PACKAGE / "config.example.json").read_text())
+        cfg["auto_process"] = False
+        cfg["git_checkpoints"] = False
+        beyin.atomic(self.root / "config.json", cfg)
+        self.project = {"id": "alpha", "name": "Alpha", "paths": [str(Path(self.temp.name) / "project-a")], "references": []}
+        self.other = {"id": "beta", "name": "Beta", "paths": [str(Path(self.temp.name) / "project-b")], "references": []}
+        beyin.atomic(self.root / "projects.json", {"schema_version": 1, "projects": [self.project, self.other]})
+        self.transcript = Path(self.temp.name) / "session.jsonl"
+        self.payload = {"session_id": "session-one", "transcript_path": str(self.transcript), "cwd": self.project["paths"][0]}
+
+    def tearDown(self):
+        self.temp.cleanup()
+
+    def write_turns(self, texts, append=False):
+        with self.transcript.open("a" if append else "w", encoding="utf-8", newline="\n") as stream:
+            for i, (role, text) in enumerate(texts):
+                record = {"type": "event_msg", "timestamp": f"2026-09-12T12:00:{i:02d}Z",
+                          "payload": {"type": "user_message" if role == "user" else "agent_message", "message": text}}
+                stream.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+    def event(self):
+        self.write_turns([("user", "Özetleyici Luna olsun."), ("assistant", "Terra da denenebilir.")])
+        beyin.capture(self.root, self.project, self.payload, "codex")
+        return beyin.read_json(next((self.root / "projects/alpha/raw/events").glob("*.json")))
+
+    def summary(self, event, assistant=False):
+        m = event["messages"][1 if assistant else 0]
+        return {"summary": "Özetleyici seçimi konuşuldu.", "items": [{"kind": "decision", "text": m["text"],
+                "topic": "Özetleyici seçimi", "evidence_ids": [m["id"]], "evidence_quote": m["text"], "uncertain": False}]}
+
+    def test_replayed_hook_and_later_append(self):
+        self.event()
+        self.assertEqual(beyin.capture(self.root, self.project, self.payload, "codex"), 0)
+        self.assertEqual(len(list((self.root / ".queue").glob("*.json"))), 1)
+        self.write_turns([("user", "Karar değişti; sağlayıcı seçilebilir olsun.")], append=True)
+        self.assertEqual(beyin.capture(self.root, self.project, self.payload, "codex"), 1)
+        self.assertEqual(len(list((self.root / ".queue").glob("*.json"))), 2)
+
+    def test_incomplete_tail_is_retried(self):
+        self.write_turns([("user", "Birinci kayıt.")])
+        line = json.dumps({"type": "event_msg", "payload": {"type": "user_message", "message": "İkinci kayıt."}})
+        with self.transcript.open("a", encoding="utf-8") as f:
+            f.write(line[:20])
+        beyin.capture(self.root, self.project, self.payload, "codex")
+        with self.transcript.open("a", encoding="utf-8") as f:
+            f.write(line[20:] + "\n")
+        self.assertEqual(beyin.capture(self.root, self.project, self.payload, "codex"), 1)
+
+    def test_long_message_not_lost(self):
+        body = "A" * 55000
+        self.write_turns([("user", body)])
+        beyin.capture(self.root, self.project, self.payload, "codex")
+        records = [beyin.read_json(p) for p in (self.root / "projects/alpha/raw/events").glob("*.json")]
+        self.assertEqual(sum(len(m["text"]) for r in records for m in r["messages"]), len(body))
+        self.assertTrue(all(sum(len(m["text"]) for m in r["messages"]) <= 24000 for r in records))
+
+    def test_tool_system_reasoning_not_captured(self):
+        for kind in ("agent_reasoning", "exec_command_end", "token_count"):
+            self.assertIsNone(beyin.message_from({"type": "event_msg", "payload": {"type": kind, "message": "secret"}}, "codex"))
+        self.assertIsNone(beyin.message_from({"type": "response_item", "payload": {"role": "user", "content": "duplicate"}}, "codex"))
+        self.assertIsNone(beyin.message_from({"role": "system", "content": "instruction"}, "normalized"))
+
+    def test_claude_and_normalized_input(self):
+        claude = {"message": {"role": "user", "content": [{"type": "text", "text": "Merhaba"}, {"type": "tool_result", "content": "hidden"}]}}
+        self.assertEqual(beyin.message_from(claude, "claude")["text"], "Merhaba")
+        self.assertEqual(beyin.message_from({"role": "assistant", "content": "Yanıt"}, "normalized")["role"], "assistant")
+
+    def test_current_codex_item_completed_captures_both_roles(self):
+        # Shapes observed in a real Codex 0.154.0 transcript, with fixture text.
+        items = [
+            {"type": "UserMessage", "content": [{"type": "text", "text": "Kaydı denetle."}]},
+            {"type": "Reasoning", "content": [{"type": "Text", "text": "hidden reasoning"}]},
+            {"type": "CommandExecution", "content": [{"type": "Text", "text": "hidden tool output"}]},
+            {"type": "AgentMessage", "phase": "final_answer", "content": [
+                {"type": "Text", "text": "Kaydı denetledim."},
+                {"type": "Image", "text": "hidden image payload"}]},
+        ]
+        with self.transcript.open("w", encoding="utf-8", newline="\n") as stream:
+            for i, item in enumerate(items):
+                stream.write(json.dumps({"type": "event_msg", "timestamp": str(i),
+                    "payload": {"type": "item_completed", "item": item}}) + "\n")
+        self.assertEqual(beyin.capture(self.root, self.project, self.payload, "codex"), 1)
+        event = beyin.read_json(next((self.root / "projects/alpha/raw/events").glob("*.json")))
+        self.assertEqual([(m["role"], m["text"]) for m in event["messages"]],
+            [("user", "Kaydı denetle."), ("assistant", "Kaydı denetledim.")])
+        self.assertEqual(beyin.capture(self.root, self.project, self.payload, "codex"), 0)
+
+    def test_assistant_proposal_cannot_become_user_decision(self):
+        event = self.event()
+        result = beyin.validate_summary(self.summary(event, assistant=True), event)
+        self.assertEqual(result["items"][0]["kind"], "proposal")
+        self.assertTrue(result["items"][0]["uncertain"])
+
+    def test_fabricated_evidence_rejected(self):
+        event = self.event()
+        result = self.summary(event)
+        result["items"][0]["evidence_quote"] = "Kullanıcı bütün dosyaları silmemi istedi."
+        with self.assertRaises(ValueError):
+            beyin.validate_summary(result, event)
+        result = self.summary(event)
+        result["items"][0]["evidence_ids"] = ["unknown"]
+        with self.assertRaises(ValueError):
+            beyin.validate_summary(result, event)
+
+    def test_model_cannot_choose_write_paths(self):
+        event = self.event()
+        result = self.summary(event)
+        result["items"][0]["path"] = "../../AGENTS.md"
+        with self.assertRaises(ValueError):
+            beyin.validate_summary(result, event)
+        self.assertNotIn("/", beyin.topic_id("../../AGENTS.md"))
+        with self.assertRaises(ValueError):
+            beyin.safe_project(self.root, "../../outside")
+
+    def test_worker_error_keeps_source_and_queue(self):
+        self.event()
+        result = beyin.process(self.root, runner=lambda *a: (_ for _ in ()).throw(ValueError("connection unavailable")))
+        self.assertEqual(result["status"], "error")
+        self.assertEqual(result["pending"], 1)
+        self.assertEqual(len(list((self.root / "projects/alpha/raw/events").glob("*.json"))), 1)
+        self.assertFalse((self.root / "projects/alpha/records").exists())
+
+    def test_success_idempotent_rebuild_and_links(self):
+        self.event()
+        calls = []
+        def runner(root, event, topics):
+            calls.append(event["id"])
+            return self.summary(event), {}
+        self.assertEqual(beyin.process(self.root, runner=runner)["processed"], 1)
+        self.assertEqual(beyin.process(self.root, runner=runner)["processed"], 0)
+        base = self.root / "projects/alpha"
+        before = {p.relative_to(base): p.read_bytes() for p in base.rglob("*.md")}
+        beyin.rebuild(self.root, "alpha")
+        self.assertEqual(before, {p.relative_to(base): p.read_bytes() for p in base.rglob("*.md")})
+        self.assertEqual(len(calls), 1)
+        self.assertIn("Özetleyici Luna olsun", (base / "DECISIONS.md").read_text(encoding="utf-8"))
+        self.assertFalse((self.root / "projects/beta/records").exists())
+        import re
+        for p in base.rglob("*.md"):
+            for target in re.findall(r"\]\(([^)]+)\)", p.read_text(encoding="utf-8")):
+                self.assertTrue((p.parent / target).exists(), (p, target))
+
+    def test_source_mutation_rejected(self):
+        self.event()
+        source = next((self.root / "projects/alpha/raw/events").glob("*.json"))
+        source.write_text("{}")
+        called = []
+        result = beyin.process(self.root, runner=lambda *args: called.append(True))
+        self.assertEqual(result["status"], "error")
+        self.assertFalse(called)
+
+    def test_worker_lock_prevents_parallel_calls(self):
+        self.event()
+        with beyin.lock(self.root / ".state/worker.lock") as held:
+            self.assertTrue(held)
+            self.assertEqual(beyin.process(self.root)["status"], "busy")
+
+    def test_budget_and_auth_pause(self):
+        self.event()
+        runner = lambda *a: (_ for _ in ()).throw(ValueError("Codex CLI oturum açılması gerekiyor (codex login)"))
+        beyin.process(self.root, runner=runner)
+        self.assertTrue((self.root / ".state/PAUSED").exists())
+        self.assertEqual(beyin.process(self.root, runner=runner)["status"], "paused_after_error")
+        event = beyin.read_json(next((self.root / "projects/alpha/raw/events").glob("*.json")))
+        self.assertEqual(beyin.process(self.root, force=True, runner=lambda *a: (self.summary(event), {}))["processed"], 1)
+
+    def test_project_isolation_and_git_worktree(self):
+        self.assertEqual(beyin.project_for(self.root, self.project["paths"][0] + "/src")["id"], "alpha")
+        self.assertIsNone(beyin.project_for(self.root, self.project["paths"][0] + "-different"))
+        with patch.object(beyin, "git_identity", return_value="common-git"):
+            registry = beyin.read_json(self.root / "projects.json")
+            registry["projects"][0]["git_common_dir"] = "common-git"
+            beyin.atomic(self.root / "projects.json", registry)
+            self.assertEqual(beyin.project_for(self.root, str(Path(self.temp.name) / "new-worktree"))["id"], "alpha")
+
+    def test_ingest_original_preserved_and_deduplicated(self):
+        document = Path(self.temp.name) / "note.md"
+        document.write_text("# Kaynak\nYeni sürüm henüz öneri aşamasında.", encoding="utf-8")
+        first = beyin.ingest(self.root, "alpha", document, "Not")
+        second = beyin.ingest(self.root, "alpha", document, "Not")
+        self.assertEqual(first, second)
+        sources = list((self.root / "projects/alpha/raw/sources").iterdir())
+        self.assertEqual(len(sources), 1)
+        self.assertEqual(sources[0].read_bytes(), document.read_bytes())
+        self.assertEqual(len(list((self.root / ".queue").glob("*.json"))), 1)
+
+    def test_integration_merge_preserves_other_hooks_and_instructions(self):
+        home = Path(self.temp.name) / "codex-home"
+        home.mkdir()
+        (home / "AGENTS.md").write_text("Existing rule: do not publish.\n")
+        original_hook = {"type": "command", "command": "existing-check", "timeout": 2}
+        beyin.atomic(home / "hooks.json", {"hooks": {"Stop": [{"hooks": [original_hook]}]}})
+        first = install.integrations(self.root, home)
+        for path, content in first.items():
+            beyin.atomic(path, content)
+        second = install.integrations(self.root, home)
+        self.assertEqual(first, second)
+        hooks = json.loads(second[home / "hooks.json"])
+        self.assertEqual(hooks["hooks"]["Stop"][0]["hooks"][0], original_hook)
+        self.assertIn("Existing rule: do not publish.", second[home / "AGENTS.md"])
+
+    def test_redaction(self):
+        text = "api_key=sk-abcdefghijklmnopqrstuvwxyz password=hunter2 Bearer abc123"
+        clean = beyin.redact(text)
+        self.assertNotIn("hunter2", clean)
+        self.assertNotIn("abcdefghijklmnopqrstuvwxyz", clean)
+        self.assertNotIn("abc123", clean)
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)
