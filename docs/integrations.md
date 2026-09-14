@@ -17,13 +17,13 @@ Codex receives a `hooks.json` entry for `SessionStart`, `Stop`, `PreCompact`, `S
 
 Claude Code also reads the user-level `CLAUDE.md` file. SourceNest adds a bounded memory instruction there and preserves existing text. Its user settings and hook documentation are maintained by Anthropic; if a future Claude release changes the hook schema, update the adapter rather than changing the vault format.
 
-For an existing vault, connect only the clients you want:
+For an existing vault, upgrade the managed engine and connect only the clients you want:
 
 ```powershell
-python install.py --target "$BeyinVault" --claude-home "$BeyinClaudeHome" --integrate
+python install.py --target "$BeyinVault" --claude-home "$BeyinClaudeHome" --upgrade
 ```
 
-The integration command writes a dated manifest in `.backups` and does not replace vault data. Review the generated command in the client's settings before enabling it. The installer never changes trust or permission decisions.
+The upgrade command writes a dated manifest in `.backups`, replaces only managed engine files, and does not replace vault data or user configuration. Review the generated command in the client's settings before enabling it. The installer never changes trust or permission decisions. Use `--integrate` when the engine is already current and you only need to add a client later.
 
 ## Cursor and other JSONL tools
 

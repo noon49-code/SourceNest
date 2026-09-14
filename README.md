@@ -45,7 +45,7 @@ The model proposes structured data. Local code checks the source IDs, evidence q
 
 ## Status
 
-Early release, engine 1.1.0. Windows + Codex CLI is the live-tested automatic integration; Claude Code wiring and provider-neutral adapters are included. Python 3.11+ and Git are required. No third-party Python dependencies.
+Early release, engine 1.1.1. Windows + Codex CLI is the live-tested automatic integration; Claude Code wiring and provider-neutral adapters are included. Python 3.11+ and Git are required. No third-party Python dependencies.
 
 The engine was live-tested with Codex CLI 0.154.0-alpha.6.2 and `gpt-5.6-luna`. The default model must be available to your own account; change `summarizer.model` in the installed vault's `config.json` if needed. CLI flags and hook formats can change between releases. Markdown summaries and engine messages currently use Turkish.
 
@@ -86,10 +86,10 @@ python install.py --target "$BeyinVault" --codex-home "$BeyinCodexHome" --claude
 
 The installer merges five Codex lifecycle hooks into `hooks.json` and five Claude Code hooks into `settings.json`, then adds a scoped memory block to Codex `AGENTS.md` and Claude `CLAUDE.md`. Existing integration files are backed up inside the private vault. It does not change hook trust or permissions. Review the generated commands in each assistant before enabling them, then start a fresh session in a registered project.
 
-If the vault already exists, use the integration-only command. It updates only the selected assistant files and creates a dated backup:
+If the vault already exists, use the upgrade command. It updates the managed engine, connects the selected assistants, and creates a dated backup; project data and configuration stay in place:
 
 ```powershell
-python install.py --target "$BeyinVault" --codex-home "$BeyinCodexHome" --claude-home "$BeyinClaudeHome" --integrate
+python install.py --target "$BeyinVault" --codex-home "$BeyinCodexHome" --claude-home "$BeyinClaudeHome" --upgrade
 ```
 
 See [assistant integrations](docs/integrations.md) for Claude Code settings, Cursor exports and the normalized JSONL shape. There is no universal hook format shared by every AI application; tools without a transcript hook use the bridge described there.

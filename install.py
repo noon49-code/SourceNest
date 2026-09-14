@@ -188,6 +188,36 @@ def integrate(target, codex_home=None, claude_home=None):
             "external_files": list(map(str, changes))}
 
 
+def upgrade(target, codex_home=None, claude_home=None):
+    """Upgrade managed engine files and optionally connect assistant clients."""
+    target = target.resolve()
+    if not target.is_dir() or not (target / "engine" / "beyin.py").is_file():
+        raise ValueError("Target is not an existing SourceNest vault")
+    changes = {}
+    for name in ("engine/beyin.py", "engine/Beyin.ps1", "engine/Beyin.cmd"):
+        source = PACKAGE / name
+        if source.exists():
+            changes[target / name] = source.read_text(encoding="utf-8")
+    changes.update(integrations(target, codex_home, claude_home) if (codex_home or claude_home) else {})
+    backup = _apply_external_changes(target, changes, "upgrade")
+    state_path = target / ".state" / "installation.json"
+    state = beyin.read_json(state_path, {})
+    state.update({"schema_version": 1, "target": str(target),
+                  "engine_version": beyin.VERSION, "upgraded_at": beyin.now(),
+                  "upgrade_backup": str(backup)})
+    if codex_home:
+        state["codex_home"] = str(codex_home)
+    if claude_home:
+        state["claude_home"] = str(claude_home)
+    integrations_used = set(state.get("integrations", [])) if isinstance(state.get("integrations", []), list) else set()
+    integrations_used.update([x for x, home in (("codex", codex_home), ("claude", claude_home)) if home])
+    if integrations_used:
+        state["integrations"] = sorted(integrations_used)
+    beyin.atomic(state_path, state)
+    return {"upgraded": str(target), "engine_version": beyin.VERSION,
+            "backup": str(backup), "updated_files": list(map(str, changes))}
+
+
 def install(target, codex_home, registry, claude_home=None):
     if target.exists():
         raise ValueError("Target already exists. Inspect it and use a reviewed upgrade; refusing to overwrite.")
@@ -254,14 +284,20 @@ def main():
     p.add_argument("--apply", action="store_true")
     p.add_argument("--integrate", action="store_true",
                    help="Connect an existing vault without replacing its data")
+    p.add_argument("--upgrade", action="store_true",
+                   help="Upgrade managed engine files in an existing vault")
     args = p.parse_args()
-    if not args.codex_home and not args.claude_home:
+    if not args.codex_home and not args.claude_home and not args.upgrade:
         p.error("At least one of --codex-home or --claude-home is required")
     target = args.target.resolve()
     codex_home = args.codex_home.resolve() if args.codex_home else None
     claude_home = args.claude_home.resolve() if args.claude_home else None
+    if args.integrate and args.upgrade:
+        p.error("Use only one of --integrate or --upgrade")
     if args.integrate:
         result = integrate(target, codex_home, claude_home)
+    elif args.upgrade:
+        result = upgrade(target, codex_home, claude_home)
     else:
         if not args.registry:
             p.error("--registry is required for a new vault plan/install")

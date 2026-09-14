@@ -68,3 +68,21 @@ class PublicInstallTests(unittest.TestCase):
             self.assertTrue((claude_home / 'settings.json').exists())
             state = json.loads((vault / '.state' / 'installation.json').read_text())
             self.assertEqual(state['integrations'], ['claude', 'codex'])
+
+    def test_existing_vault_upgrade_replaces_only_managed_engine_and_adds_claude(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            codex_home = base / 'fake-codex'
+            claude_home = base / 'fake-claude'
+            codex_home.mkdir()
+            claude_home.mkdir()
+            vault = base / 'vault'
+            registry = json.loads((PACKAGE / 'projects.example.json').read_text())
+            install.install(vault, codex_home, registry)
+            profile = vault / 'PROFILE.md'
+            profile.write_text(profile.read_text(encoding='utf-8') + '\nUser preference.\n', encoding='utf-8')
+            result = install.upgrade(vault, claude_home=claude_home)
+            self.assertEqual(result['engine_version'], install.beyin.VERSION)
+            self.assertIn('User preference.', profile.read_text(encoding='utf-8'))
+            self.assertIn(f'VERSION = "{install.beyin.VERSION}"', (vault / 'engine' / 'beyin.py').read_text(encoding='utf-8'))
+            self.assertTrue((claude_home / 'settings.json').exists())

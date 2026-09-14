@@ -1,10 +1,15 @@
 # Changelog
 
+## 1.1.1 — safe existing-vault upgrade
+
+- Add `--upgrade` to update managed engine files while preserving project data and user configuration.
+- Allow a single upgrade to connect Codex, Claude Code, or both, with a dated rollback manifest.
+
 ## 1.1.0 — portable assistant integrations
 
 - Add Claude Code lifecycle hooks and user-level `CLAUDE.md` memory instructions.
 - Add Cursor and normalized JSONL transcript adapters plus `capture-file`.
-- Add an integration-only installer path for existing vaults.
+- Add upgrade and integration-only installer paths for existing vaults.
 - Keep the vault schema, source links and summarizer choices independent of the assistant client.
 
 ## 1.0.1 — public source package

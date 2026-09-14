@@ -49,10 +49,10 @@ Hedef klasör önceden varsa kurucu durur. Mevcut kasanın üzerine yeniden kurm
 
 Kurucu, Codex `hooks.json` ve Claude Code `settings.json` içine kancaları ekler; ayrıca Codex `AGENTS.md` ve Claude `CLAUDE.md` içine sınırlı hafıza yönergesi koyar. Mevcut dosyalar kasanın `.backups` klasöründe yedeklenir. Kurucu güven veya izin kararlarını değiştirmez. Her aracın ayarlarında eklenen komutları inceleyip etkinleştir.
 
-Kasa zaten varsa yalnızca bağlantıyı eklemek için:
+Kasa zaten varsa motoru güncellemek ve seçtiğin asistan bağlantılarını eklemek için:
 
 ```powershell
-python install.py --target "$BeyinVault" --codex-home "$BeyinCodexHome" --claude-home "$BeyinClaudeHome" --integrate
+python install.py --target "$BeyinVault" --codex-home "$BeyinCodexHome" --claude-home "$BeyinClaudeHome" --upgrade
 ```
 
 Araç biçimleri ve dışa aktarma yolu için [asistan bağlantıları](docs/integrations.md) sayfasına bak. Bütün yapay zekâ uygulamalarının ortak kullandığı tek bir kanca standardı yoktur; kanca sunmayan araçlar JSONL köprüsünü kullanır.
