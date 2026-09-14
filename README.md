@@ -41,7 +41,7 @@ flowchart TD
 
 </details>
 
-The model proposes structured data. Local code checks the source IDs, evidence quotes, and schema before anything reaches the generated wiki.
+The extraction model proposes structured memory data. Local code checks the source IDs, evidence quotes, and schema before anything reaches the generated wiki.
 
 [Türkçe kurulum ve kullanım](README.tr.md) · [Privacy](PRIVACY.md) · [Credits](CREDITS.md) · [MIT license](LICENSE)
 
