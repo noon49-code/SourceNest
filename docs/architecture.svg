@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="720" height="690" viewBox="0 0 720 690" role="img" aria-labelledby="title desc">
   <title id="title">SourceNest: a private vault for your projects</title>
-  <desc id="desc">Assistant hooks capture registered Codex or Claude Code sessions into local JSON. A configured model proposes summaries. Local validation precedes project records and Markdown pages in a private vault outside code repositories.</desc>
+  <desc id="desc">Assistant hooks capture registered Codex or Claude Code sessions into local JSON. Luna writes a neutral synopsis and a separate stronger model extracts source-backed memory items. Local validation precedes project records and Markdown pages in a private vault outside code repositories.</desc>
   <defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0 0L8 4L0 8" fill="#94a3b8"/></marker></defs>
   <rect width="720" height="690" rx="20" fill="#0f172a"/>
   <g font-family="Segoe UI,Arial,sans-serif" fill="#f8fafc">
@@ -11,8 +11,8 @@
     <text x="52" y="170" font-size="18">Codex, Claude Code or JSONL adapters save visible text.</text>
     <path d="M360 199V220" stroke="#94a3b8" stroke-width="3" marker-end="url(#arrow)"/>
     <rect x="32" y="232" width="656" height="88" rx="12" fill="#78350f"/>
-    <text x="52" y="266" font-size="22" font-weight="600">2. Send text to the configured model</text>
-    <text x="52" y="296" font-size="18">The provider returns proposed summaries and quotes.</text>
+    <text x="52" y="266" font-size="22" font-weight="600">2. Run the two model roles</text>
+    <text x="52" y="296" font-size="18">Luna writes a synopsis; a stronger model extracts cited memory items.</text>
     <path d="M360 325V346" stroke="#94a3b8" stroke-width="3" marker-end="url(#arrow)"/>
     <rect x="32" y="358" width="656" height="88" rx="12" fill="#14532d"/>
     <text x="52" y="392" font-size="22" font-weight="600">3. Check evidence locally</text>

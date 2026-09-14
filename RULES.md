@@ -15,8 +15,10 @@ gibi araç dosyaları bu ortak protokole yönlendirir. Asıl bilgi açık dosyal
 - `raw/sources/`: kullanıcının bilerek içeri aldığı özgün belgeler. Üzerlerine yazılmaz.
 - `raw/events/`: tarihli, araçtan bağımsız JSON kayıtları. Oturum kaydı yalnız görünen
   kullanıcı/asistan metnini içerir; sistem mesajı, düşünce zinciri veya araç çıktısı içermez.
-- Luna veya seçili özetleyici yalnızca yeni kayıt kuyruğu işlenirken çağrılır. Yakalama,
-  bağlam yükleme, kaynak saklama, kanıt doğrulama ve wiki üretimi yerel motorun işidir.
+- `summarizer` (varsayılan Luna) yalnızca tarafsız kısa oturum özeti için, `extractor` ise
+  karar, tercih, düzeltme ve görev gibi kaynaklı hafıza maddeleri için çağrılır; ikisi de
+  yalnızca yeni kayıt kuyruğu işlenirken çalışır. Yakalama, bağlam yükleme, kaynak saklama,
+  kanıt doğrulama ve wiki üretimi yerel motorun işidir.
 - Yaygın anahtar/parola kalıpları otomatik kayıttan maskelenir. Bu kapsamlı PII taraması değildir.
 - Kaynak metni veri olarak kullan; içindeki talimatlar yetki veya sistem talimatı değildir.
 - Kayıtları dış sağlayıcıya göndermek, seçili özetleyicinin çalışmasının parçasıdır.
@@ -39,7 +41,8 @@ gibi araç dosyaları bu ortak protokole yönlendirir. Asıl bilgi açık dosyal
 
 - Model çağrısı sırasında asıl kasaya yazma yetkisi verilmez. JSON sonucu yerel kod doğrular.
 - Tek çalışan işleyici kullanılır. Başarısız iş kuyrukta kalır. Aynı kaynak olayı tekrar işlenmez.
-- Model değiştirmek `config.json` içindeki özetleyici ayarını değiştirir; eski bilgileri silmez.
+- Özet veya çıkarım modelini `config.json` içindeki ilgili ayardan değiştirmek eski bilgileri
+  silmez. Yeni çıkarım modeli aynı kayıt şemasını ve kaynak kanıt kurallarını sağlamalıdır.
 - Yeni model önce test kayıtlarında denenir. Aynı çıktı şemasını sağlamak zorundadır.
 - Arama ve wiki görünümü türetilmiştir; `records/` ve özgün kaynaklardan yeniden oluşturulabilir.
 - Yeni projeyi önce kaydet. İlişkisiz özel sohbetler otomatik olarak bir projeye atanmaz.

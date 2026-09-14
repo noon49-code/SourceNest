@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.0 — separate summary and memory extraction models
+
+- Use the configured Luna model only for a neutral session synopsis.
+- Use a separate stronger extractor model for source-backed decisions, preferences,
+  corrections and tasks.
+- Keep the legacy single-model configuration as a compatibility fallback.
+
 ## 1.2.0 — easier Windows setup
 
 - Add `setup.ps1` and `setup.cmd` wrappers with Python and assistant-home discovery.

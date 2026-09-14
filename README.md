@@ -8,7 +8,7 @@ One private vault holds a separate folder for each project. The vault lives outs
 
 [Install](#install-powershell) · [Common questions](#common-questions) · [Türkçe rehber](README.tr.md) · [Validation](VALIDATION.md) · [Privacy](PRIVACY.md)
 
-**Current scope:** early release, with live capture tested on Windows + Codex CLI. Claude Code hook files and Cursor/normalized adapters are covered by local fixtures. Summaries currently use Turkish. The configured model is used only for queued summarization; capture, context loading, source storage, evidence validation and Markdown rendering stay local. Local storage does not mean the summarization call is offline.
+**Current scope:** early release, with live capture tested on Windows + Codex CLI. Claude Code hook files and Cursor/normalized adapters are covered by local fixtures. Summaries currently use Turkish. The configured summary model is used only for a neutral queued synopsis; a separate, stronger extraction model produces source-backed decisions, preferences, corrections and tasks. Capture, context loading, source storage, evidence validation and Markdown rendering stay local. Local storage does not mean model calls are offline.
 
 ![SourceNest data flow: assistant session to source record, validated memory, and project wiki](docs/architecture.svg)
 
@@ -30,8 +30,10 @@ Each extracted item links to a source message and quote. Those checks help you t
 flowchart TD
     A[Codex / Claude / other session] -->|visible user and assistant text| B[Lifecycle hooks or JSONL bridge]
     B --> C[Immutable JSON event]
-    C --> D[Configured model provider]
-    D -->|structured JSON| E[Local validation]
+    C --> D1[Summary model<br/>Luna]
+    C --> D2[Memory extraction model<br/>stronger model]
+    D1 -->|neutral synopsis| E[Local validation]
+    D2 -->|source-backed items| E
     E --> F[Project records]
     F --> G[Markdown topic wiki]
     F --> H[Daily log and decisions]
@@ -45,16 +47,16 @@ The model proposes structured data. Local code checks the source IDs, evidence q
 
 ## Status
 
-Early release, engine 1.2.0. Windows + Codex CLI is the live-tested automatic integration; Claude Code wiring and provider-neutral adapters are included. Python 3.11+ and Git are required. No third-party Python dependencies.
+Early release, engine 1.3.0. Windows + Codex CLI is the live-tested automatic integration; Claude Code wiring and provider-neutral adapters are included. Python 3.11+ and Git are required. No third-party Python dependencies.
 
-The engine was live-tested with Codex CLI 0.154.0-alpha.6.2 and `gpt-5.6-luna`. The default summarizer uses high reasoning effort so source-backed decisions and corrections are handled reliably; set `summarizer.reasoning_effort` to `max` when you prefer slower, deeper passes. The default model must be available to your own account; change `summarizer.model` in the installed vault's `config.json` if needed. CLI flags and hook formats can change between releases. Markdown summaries and engine messages currently use Turkish.
+The engine was live-tested with Codex CLI 0.154.0-alpha.6.2 and `gpt-5.6-luna`. Luna is the low-effort summary model; the default `gpt-5.6-sol` extractor uses high reasoning effort for source-backed decisions and corrections. Change `summarizer.model` or `extractor.model` in the installed vault's `config.json` when needed; `max` is available for either role when you prefer slower, deeper passes. The selected models must be available to your own account. CLI flags and hook formats can change between releases. Markdown summaries and engine messages currently use Turkish.
 
 ## How it works
 
 1. Register a project directory once.
 2. SessionStart supplies that project's status and index, plus shared preferences.
 3. Lifecycle hooks capture new visible user/assistant text. The adapter identifies the source format; it does not change the vault schema.
-4. A background summarizer returns structured JSON. Local code validates evidence quotes, source IDs and schema.
+4. A background summary model writes a neutral synopsis, while a stronger extraction model returns structured memory items. Local code validates evidence quotes, source IDs and schema.
 5. Deterministic rendering creates a topic wiki, daily records and decision history.
 
 Source text cannot choose output paths. Assistant proposals cannot become user decisions solely on assistant evidence. Quote validation does not prove that an interpretation is correct. Memory is historical data, never new authorization.
@@ -158,11 +160,11 @@ The private vault contains `projects/<id>/raw`, `records`, `wiki`, `daily`, `STA
 
 ## Changing models and managing usage
 
-When queued work is processed, the default summarizer uses your Codex account, with at most 4 calls per run and 20 per UTC day across the vault. These are call limits, not monetary limits. With `auto_process=true`, a worker starts after a capture hook only when queued work exists; set it to `false` and run `process --retry` when you want manual control. Errors retain queued work; processing resumes on later hooks or an explicit retry, not a timer. Memory context and summarization consume tokens.
+When queued work is processed, the two configured roles use your Codex account, with at most 4 model calls per run and 20 per UTC day across the vault. With the split defaults, one queued event uses two calls: one Luna synopsis and one stronger extraction pass. These are call limits, not monetary limits. With `auto_process=true`, a worker starts after a capture hook only when queued work exists; set it to `false` and run `process --retry` when you want manual control. Errors retain queued work; processing resumes on later hooks or an explicit retry, not a timer. Memory context, summary and extraction consume tokens.
 
-Change `summarizer` in the installed `config.json` to select a model/provider. `codex_cli` is live-tested; `openai_responses` and an explicit local `command` adapter exist but are not live-verified across providers. API use requires its own environment credential and billing. The command adapter receives the prompt on stdin and must return the summary JSON schema on stdout; `{model}` arguments are substituted without shell evaluation.
+Change `summarizer` to choose the neutral synopsis model and `extractor` to choose the stronger model that classifies important memory items. Both settings use the same provider choices: `codex_cli` is live-tested; `openai_responses` and an explicit local `command` adapter exist but are not live-verified across providers. API use requires its own environment credential and billing. The command adapter receives the role-specific prompt on stdin and must return the matching SourceNest JSON schema on stdout; `{model}` arguments are substituted without shell evaluation. If `extractor` is omitted, the engine falls back to the legacy single-model combined schema for compatibility.
 
-Codex and Claude Code use lifecycle hooks; Cursor and other tools can feed a compatible JSONL export through `capture-file`. The capture adapter and summarizer provider are separate: changing the model does not change stored records. Files remain readable without any model.
+Codex and Claude Code use lifecycle hooks; Cursor and other tools can feed a compatible JSONL export through `capture-file`. Capture, summary and extraction are separate roles: changing any model does not change stored records. Files remain readable without any model.
 
 ## Common questions
 
@@ -176,7 +178,7 @@ SourceNest combines automatic session memory with a source-backed Markdown wiki.
 
 ### Can I switch models without losing my notes?
 
-The stored JSON and Markdown files remain available when you change the summarizer or assistant. A provider must return the expected structured output; the `command` adapter lets you wrap a local CLI that does so. Apps without a transcript hook need an export or bridge, while the vault itself stays unchanged.
+The stored JSON and Markdown files remain available when you change the summary model, extraction model or assistant. A provider must return the expected role-specific output; the `command` adapter lets you wrap a local CLI that does so. Apps without a transcript hook need an export or bridge, while the vault itself stays unchanged.
 
 ### How do I search the memory?
 

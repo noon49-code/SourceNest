@@ -6,7 +6,7 @@ SourceNest, Codex, Claude Code, Cursor ve benzeri yapay zekâ kodlama araçları
 
 Tek bir özel kasa, kod depolarının dışında durur; her projenin hafızası bu kasanın ayrı bir klasöründedir. Çekirdek kayıt biçimi model sağlayıcısına bağlı değildir. Codex ve Claude Code için yaşam döngüsü kancaları, dışa aktarma veya akış sunan diğer araçlar için standart JSONL köprüsü vardır.
 
-**Mevcut kapsam:** erken sürüm; Windows + Codex CLI ile canlı yakalama test edildi. Claude Code kanca dosyaları ve Cursor/standart JSONL adaptörleri sentetik testlerle doğrulandı. Özetler Türkçe üretilir. Seçilen model yalnızca kuyruktaki kayıtları özetlemek için kullanılır; yakalama, bağlam yükleme, kaynak saklama, kanıt doğrulama ve Markdown üretimi yerelde yapılır. Dosyaların yerelde olması özetleme çağrısının çevrimdışı olduğu anlamına gelmez.
+**Mevcut kapsam:** erken sürüm; Windows + Codex CLI ile canlı yakalama test edildi. Claude Code kanca dosyaları ve Cursor/standart JSONL adaptörleri sentetik testlerle doğrulandı. Özetler Türkçe üretilir. Seçilen özet modeli yalnızca tarafsız oturum özetini üretir; ayrı ve daha güçlü çıkarım modeli karar, tercih, düzeltme ve görev maddelerini kaynaklarıyla oluşturur. Yakalama, bağlam yükleme, kaynak saklama, kanıt doğrulama ve Markdown üretimi yerelde yapılır. Dosyaların yerelde olması model çağrılarının çevrimdışı olduğu anlamına gelmez.
 
 ![SourceNest veri akışı: oturumdan kaynak kaydına ve proje wiki'sine](docs/architecture.svg)
 
@@ -14,8 +14,10 @@ Tek bir özel kasa, kod depolarının dışında durur; her projenin hafızası 
 flowchart TD
     A[Codex / Claude / diğer oturum] -->|kullanıcı ve asistan metni| B[Yaşam kancaları veya JSONL köprüsü]
     B --> C[Değişmez JSON kaynak kaydı]
-    C --> D[Seçilen özetleyici]
-    D --> E[Yerel doğrulama]
+    C --> D1[Özet modeli<br/>Luna]
+    C --> D2[Hafıza çıkarım modeli<br/>daha güçlü model]
+    D1 -->|tarafsız özet| E[Yerel doğrulama]
+    D2 -->|kaynaklı maddeler| E
     E --> F[Proje kayıtları ve Markdown wiki]
 ~~~
 
@@ -23,7 +25,7 @@ Karpathy'nin kaynak → wiki yaklaşımı ve Avenox'un oturum hafızası fikrind
 
 ## Gerekenler
 
-Windows, Python 3.11+ ve Git gerekir. Codex özetleyicisini kullanacaksan `codex login status` çalışır durumda olmalıdır. Otomatik Codex ve Claude Code bağlantıları Windows için hazırlanır; varsayılan `gpt-5.6-luna` modelinin hesabında kullanılabilir olması gerekir. Hafıza özetlerinde kaynaklı karar ve düzeltmeleri daha güvenilir işlemek için varsayılan efor `high` olarak ayarlanmıştır; daha yavaş ve derin bir işlem istersen `summarizer.reasoning_effort` değerini `max` yapabilirsin. Model değiştirilebilir. Özetler şu an Türkçe üretilir.
+Windows, Python 3.11+ ve Git gerekir. Codex özetleyicisini kullanacaksan `codex login status` çalışır durumda olmalıdır. Otomatik Codex ve Claude Code bağlantıları Windows için hazırlanır; `gpt-5.6-luna` özet modeli ve varsayılan `gpt-5.6-sol` çıkarım modelinin hesabında kullanılabilir olması gerekir. Luna yalnız tarafsız kısa özet için düşük eforla çalışır; karar ve düzeltmeleri çıkaran güçlü model `high` eforla çalışır. Daha yavaş ve derin bir işlem istersen iki rolün `reasoning_effort` değerini `max` yapabilirsin. Model değiştirilebilir. Özetler şu an Türkçe üretilir.
 
 ## Kurulum
 
@@ -92,7 +94,7 @@ Dosyalar kasanın `projects/<proje-kimliği>` klasöründedir. `wiki` bilgi sayf
 
 ## Model, kota ve bakım
 
-Kasanın `config.json` dosyasında `summarizer.model` modeli belirler. Yeni kayıt kuyruğu işlenirken varsayılan özetleyici Codex hesabını kullanır; sınır merkez kasa genelinde UTC gün başına 20, bir çalışmada 4 çağrıdır. `auto_process=true` ise yalnız kuyrukta iş olduğunda kanca sonrasında arka plan işleyicisi başlar. Luna çağrılarını elle başlatmak istersen `auto_process` değerini `false` yapıp `process --retry` çalıştır. Model çağrıları hesabının kotasını kullanır; bunlar parasal harcama sınırı değildir. Hatalı işler kuyrukta kalır; zamanlanmış iş kurulmaz.
+Kasanın `config.json` dosyasında `summarizer` tarafsız kısa özet modelini, `extractor` ise karar, tercih, düzeltme ve görevleri çıkaran güçlü modeli belirler. Yeni kayıt kuyruğu işlenirken iki rol de kendi modeliyle çalışır; sınır merkez kasa genelinde UTC gün başına 20, bir çalışmada 4 model çağrısıdır. `auto_process=true` ise yalnız kuyrukta iş olduğunda kanca sonrasında arka plan işleyicisi başlar. Model çağrılarını elle başlatmak istersen `auto_process` değerini `false` yapıp `process --retry` çalıştır. Model çağrıları hesabının kotasını kullanır; bunlar parasal harcama sınırı değildir. Hatalı işler kuyrukta kalır; zamanlanmış iş kurulmaz.
 
 ```powershell
 python "$BeyinVault\engine\beyin.py" process --retry
@@ -108,7 +110,7 @@ Codex ve Claude Code yaşam kancalarını kullanır. Cursor veya dışa aktarma 
 python "$BeyinVault\engine\beyin.py" capture-file --project yeni-proje --file 'D:\Exports\session.jsonl' --adapter normalized --session dis-session
 ```
 
-`cursor` adaptörü `type` + `message.role` + `message.content` biçimini, `normalized` adaptörü ise `role` + `content` biçimini okur. Yakalama biçimi ile özetleyici birbirinden ayrıdır; model değiştirince kasa formatı değişmez.
+`cursor` adaptörü `type` + `message.role` + `message.content` biçimini, `normalized` adaptörü ise `role` + `content` biçimini okur. Yakalama, özet ve çıkarım rolleri birbirinden ayrıdır; model değiştirince kasa formatı değişmez.
 
 Kişisel kasanı ve Git geçmişini herkese açık paylaşma. Düzenli ayrı yedek al. Özetler hatalı olabilir; kaynak ve tarihleri kontrol et. Ayrıntılar: [gizlilik](PRIVACY.md), [komutlar ve kaldırma](README.md), [esin kaynakları](CREDITS.md).
 

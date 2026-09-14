@@ -1,6 +1,6 @@
 # Assistant integrations
 
-SourceNest separates **capture** from **summarization**. Capture adapters turn an assistant's visible conversation into the same source-backed event format; the summarizer later turns those events into validated records and Markdown pages. This keeps the vault portable when you change from Codex to Claude Code, Cursor, or another model provider.
+SourceNest separates **capture**, **summary** and **memory extraction**. Capture adapters turn an assistant's visible conversation into the same source-backed event format. A lightweight summary model writes a neutral synopsis, while a separate stronger model turns the same source events into validated decisions, preferences, corrections and tasks. This keeps the vault portable when you change from Codex to Claude Code, Cursor, or another model provider.
 
 For a one-command Windows setup, run `setup.ps1` (or `setup.cmd`) from the extracted repository. It detects the bundled/runtime Python, the usual assistant homes and whether the vault needs a first install or an upgrade. It prints a plan by default; add `-Apply` to write it and `-Verify` to check it later.
 
@@ -52,10 +52,29 @@ Cursor-shaped records with `type`, `message.role` and `message.content` can use 
 
 There is no single hook standard shared by every AI assistant. Some desktop applications expose neither a conversation file nor lifecycle events. For those tools, export the session to the normalized JSONL shape or write a small bridge that sends the same records to `capture-file`. The project registry, source links, validation rules and Markdown wiki remain unchanged.
 
-The summarizer is a separate choice in `config.json`:
+The two model roles are separate choices in `config.json`:
+
+```json
+{
+  "summarizer": {
+    "provider": "codex_cli",
+    "model": "gpt-5.6-luna",
+    "reasoning_effort": "low"
+  },
+  "extractor": {
+    "provider": "codex_cli",
+    "model": "gpt-5.6-sol",
+    "reasoning_effort": "high"
+  }
+}
+```
+
+`summarizer` produces only a neutral synopsis. `extractor` alone classifies source-backed memory items such as decisions, preferences and corrections. If `extractor` is omitted, the engine uses the legacy single-model combined response for compatibility.
+
+Both roles support these provider choices:
 
 * `codex_cli` uses the installed Codex CLI account (the live-tested default).
 * `openai_responses` uses an OpenAI API key from the configured environment variable.
-* `command` sends the prompt to an explicitly configured local executable and expects the SourceNest JSON schema on standard output. This is the escape hatch for another CLI or a wrapper around Claude, Gemini, or a self-hosted model.
+* `command` sends the role-specific prompt to an explicitly configured local executable and expects the matching SourceNest JSON schema on standard output. This is the escape hatch for another CLI or a wrapper around Claude, Gemini, or a self-hosted model.
 
 Do not pass raw transcripts as command-line arguments. The engine sends them on standard input, validates the returned evidence IDs and quotes, and never lets model output choose a file path.

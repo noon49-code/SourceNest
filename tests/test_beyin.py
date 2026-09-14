@@ -156,6 +156,48 @@ class MemoryTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             beyin.safe_project(self.root, "../../outside")
 
+    def test_split_models_keep_luna_on_summary_only(self):
+        event = self.event()
+        calls = []
+
+        def provider(root, settings, prompt, schema, schema_name):
+            calls.append((settings["model"], schema_name, prompt))
+            if schema_name == "memory_summary":
+                return {"summary": "Oturumda özetleyici tercihi konuşuldu."}, {"role": "summary"}
+            return {"items": []}, {"role": "extractor"}
+
+        with patch.object(beyin, "run_provider", side_effect=provider):
+            result, usage = beyin.run_model(self.root, event, [])
+        self.assertEqual([row[:2] for row in calls], [
+            ("gpt-5.6-luna", "memory_summary"),
+            ("gpt-5.6-sol", "memory_items"),
+        ])
+        self.assertIn("Karar, tercih, düzeltme veya görev listesi çıkarma", calls[0][2])
+        self.assertIn("summary üretme", calls[1][2])
+        self.assertEqual(result["items"], [])
+        self.assertEqual(usage["summary"]["role"], "summary")
+        self.assertEqual(usage["extractor"]["role"], "extractor")
+
+    def test_split_models_record_both_model_roles_and_count_calls(self):
+        event = self.event()
+        user = event["messages"][0]
+
+        def provider(root, settings, prompt, schema, schema_name):
+            if schema_name == "memory_summary":
+                return {"summary": "Özetleyici tercihi kaydedildi."}, {}
+            return {"items": [{"kind": "decision", "text": user["text"],
+                    "topic": "Özetleyici seçimi", "evidence_ids": [user["id"]],
+                    "evidence_quote": user["text"], "uncertain": False}]}, {}
+
+        with patch.object(beyin, "run_provider", side_effect=provider):
+            result = beyin.process(self.root)
+        self.assertEqual(result["processed"], 1)
+        self.assertEqual(beyin.read_json(self.root / ".state" / "budget.json")["calls"], 2)
+        record = beyin.read_json(next((self.root / "projects/alpha/records").glob("*.json")))
+        self.assertEqual(record["summary_model"], "gpt-5.6-luna")
+        self.assertEqual(record["extraction_model"], "gpt-5.6-sol")
+        self.assertEqual(record["usage"], {"summary": {}, "extractor": {}})
+
     def test_worker_error_keeps_source_and_queue(self):
         self.event()
         result = beyin.process(self.root, runner=lambda *a: (_ for _ in ()).throw(ValueError("connection unavailable")))
