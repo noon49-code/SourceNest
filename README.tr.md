@@ -6,7 +6,7 @@ SourceNest, Codex, Claude Code, Cursor ve benzeri yapay zekâ kodlama araçları
 
 Tek bir özel kasa, kod depolarının dışında durur; her projenin hafızası bu kasanın ayrı bir klasöründedir. Çekirdek kayıt biçimi model sağlayıcısına bağlı değildir. Codex ve Claude Code için yaşam döngüsü kancaları, dışa aktarma veya akış sunan diğer araçlar için standart JSONL köprüsü vardır.
 
-**Mevcut kapsam:** erken sürüm; Windows + Codex CLI ile canlı yakalama test edildi. Claude Code kanca dosyaları ve Cursor/standart JSONL adaptörleri sentetik testlerle doğrulandı. Özetler Türkçe üretilir. Yakalanan metin seçilen model sağlayıcısına gönderilir; dosyaların yerelde olması işlemenin çevrimdışı olduğu anlamına gelmez.
+**Mevcut kapsam:** erken sürüm; Windows + Codex CLI ile canlı yakalama test edildi. Claude Code kanca dosyaları ve Cursor/standart JSONL adaptörleri sentetik testlerle doğrulandı. Özetler Türkçe üretilir. Seçilen model yalnızca kuyruktaki kayıtları özetlemek için kullanılır; yakalama, bağlam yükleme, kaynak saklama, kanıt doğrulama ve Markdown üretimi yerelde yapılır. Dosyaların yerelde olması özetleme çağrısının çevrimdışı olduğu anlamına gelmez.
 
 ![SourceNest veri akışı: oturumdan kaynak kaydına ve proje wiki'sine](docs/architecture.svg)
 
@@ -92,7 +92,7 @@ Dosyalar kasanın `projects/<proje-kimliği>` klasöründedir. `wiki` bilgi sayf
 
 ## Model, kota ve bakım
 
-Kasanın `config.json` dosyasında `summarizer.model` modeli belirler. Başlangıç sınırı merkez kasa genelinde UTC gün başına 20, bir çalışmada 4 çağrıdır. Model çağrıları hesabının kotasını kullanır; bunlar parasal harcama sınırı değildir. Kuyruk sonraki kanca olaylarında veya elle işlemeyle devam eder; zamanlanmış iş kurulmaz.
+Kasanın `config.json` dosyasında `summarizer.model` modeli belirler. Yeni kayıt kuyruğu işlenirken varsayılan özetleyici Codex hesabını kullanır; sınır merkez kasa genelinde UTC gün başına 20, bir çalışmada 4 çağrıdır. `auto_process=true` ise yalnız kuyrukta iş olduğunda kanca sonrasında arka plan işleyicisi başlar. Luna çağrılarını elle başlatmak istersen `auto_process` değerini `false` yapıp `process --retry` çalıştır. Model çağrıları hesabının kotasını kullanır; bunlar parasal harcama sınırı değildir. Hatalı işler kuyrukta kalır; zamanlanmış iş kurulmaz.
 
 ```powershell
 python "$BeyinVault\engine\beyin.py" process --retry

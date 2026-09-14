@@ -8,7 +8,7 @@ One private vault holds a separate folder for each project. The vault lives outs
 
 [Install](#install-powershell) · [Common questions](#common-questions) · [Türkçe rehber](README.tr.md) · [Validation](VALIDATION.md) · [Privacy](PRIVACY.md)
 
-**Current scope:** early release, with live capture tested on Windows + Codex CLI. Claude Code hook files and Cursor/normalized adapters are covered by local fixtures. Summaries currently use Turkish. The configured summarizer receives captured text, so local file storage does not mean offline processing.
+**Current scope:** early release, with live capture tested on Windows + Codex CLI. Claude Code hook files and Cursor/normalized adapters are covered by local fixtures. Summaries currently use Turkish. The configured model is used only for queued summarization; capture, context loading, source storage, evidence validation and Markdown rendering stay local. Local storage does not mean the summarization call is offline.
 
 ![SourceNest data flow: assistant session to source record, validated memory, and project wiki](docs/architecture.svg)
 
@@ -158,7 +158,7 @@ The private vault contains `projects/<id>/raw`, `records`, `wiki`, `daily`, `STA
 
 ## Changing models and managing usage
 
-The default summarizer uses your Codex account, with at most 4 calls per run and 20 per UTC day across the vault. These are call limits, not monetary limits. Errors retain queued work; processing resumes on later hooks or an explicit retry, not a timer. Memory context and summarization consume tokens.
+When queued work is processed, the default summarizer uses your Codex account, with at most 4 calls per run and 20 per UTC day across the vault. These are call limits, not monetary limits. With `auto_process=true`, a worker starts after a capture hook only when queued work exists; set it to `false` and run `process --retry` when you want manual control. Errors retain queued work; processing resumes on later hooks or an explicit retry, not a timer. Memory context and summarization consume tokens.
 
 Change `summarizer` in the installed `config.json` to select a model/provider. `codex_cli` is live-tested; `openai_responses` and an explicit local `command` adapter exist but are not live-verified across providers. API use requires its own environment credential and billing. The command adapter receives the prompt on stdin and must return the summary JSON schema on stdout; `{model}` arguments are substituted without shell evaluation.
 
