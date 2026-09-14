@@ -1,15 +1,17 @@
 # SourceNest · Türkçe rehber
 
-## Proje hafızası, projenin yanında kalsın
+## Projeye döndüğünde her şeyi baştan anlatma
 
-SourceNest, Codex oturumlarında işe yarayan kararları, tercihleri, düzeltmeleri ve açık işleri ilgili projenin yanında tutar. Görünen kullanıcı/asistan metni yerel JSON kayıtlarına yazılır; kalıcı bilgiler kaynak alıntılarıyla Markdown wiki sayfalarına derlenir.
+SourceNest, Windows üzerinde Codex için proje hafızasıdır. Kayıtlı projelerdeki yeni kullanıcı ve asistan mesajlarını yakalar; kararları, tercihleri, düzeltmeleri ve açık işleri kaynak bağlantılarıyla Markdown sayfalarına derler.
 
-Modeli değiştirsen bile kayıt biçimi değişmez. Birden fazla projede çalışıyorsan her projenin hafızası ayrı klasörde kalır.
+Tek bir özel kasa, kod depolarının dışında durur; her projenin hafızası bu kasanın ayrı bir klasöründedir. Modeli değiştirsen bile JSON ve Markdown dosyalarını okuyabilirsin. Başka bir asistan uygulamasına geçiş için o uygulamaya uygun otomatik kayıt bağlantısı gerekir.
+
+**Mevcut kapsam:** erken sürüm; otomatik bağlantı Windows + Codex CLI ile test edildi. Özetler Türkçe üretilir. Yakalanan metin seçilen model sağlayıcısına gönderilir; dosyaların yerelde olması işlemenin çevrimdışı olduğu anlamına gelmez.
 
 ![SourceNest veri akışı: oturumdan kaynak kaydına ve proje wiki'sine](docs/architecture.svg)
 
 ~~~mermaid
-flowchart LR
+flowchart TD
     A[Codex oturumu] -->|kullanıcı ve asistan metni| B[Yaşam döngüsü kancaları]
     B --> C[Değişmez JSON kaynak kaydı]
     C --> D[Seçilen özetleyici]
@@ -41,6 +43,8 @@ python install.py --target "$BeyinVault" --codex-home "$BeyinCodexHome" --regist
 ```
 
 Hedef klasör önceden varsa kurucu durur. Mevcut kasanın üzerine yeniden kurma.
+
+Örnek proje listesi boştur. Aşağıdaki kayıt komutunu çalıştırana kadar hiçbir proje bağlanmaz. `python` bulunamıyorsa ve `py -3 --version` Python 3.11 veya üzerini gösteriyorsa komutlarda `python` yerine `py -3` kullan.
 
 Terminalde `codex` aç, `/hooks` yaz. Kurduğun kasadaki `engine/beyin.py` dosyasını çalıştıran SessionStart, Stop, PreCompact, SessionEnd ve Interrupt kancalarını inceleyip güvenilir olarak işaretle. Kurucu güven onayını değiştirmez. İlgisiz kancaları topluca onaylama.
 

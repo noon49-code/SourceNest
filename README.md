@@ -1,10 +1,14 @@
 # SourceNest
 
-## Keep the project memory with the project
+## Pick up a project without retelling its history
 
-SourceNest keeps the useful parts of a Codex session beside the code they belong to. It records visible conversation text locally, keeps the original evidence, and turns durable decisions, preferences, corrections, and open work into linked Markdown pages.
+SourceNest is project memory for Codex on Windows. It captures new user and assistant messages from registered projects and compiles decisions, preferences, corrections, and open work into Markdown pages with links to the source messages.
 
-If you change models later, the notes stay in the same JSON and Markdown files. If you work on several projects, each one gets its own memory area. You can inspect the files without running a model.
+One private vault holds a separate folder for each project. The vault lives outside your code repositories. JSON records and Markdown pages remain readable when you change models; another assistant app still needs its own capture integration.
+
+[Install](#install-powershell) · [Türkçe rehber](README.tr.md) · [Validation](VALIDATION.md) · [Privacy](PRIVACY.md)
+
+**Current scope:** early release, tested automatic integration with Windows + Codex CLI. Summaries currently use Turkish. The configured summarizer receives captured text, so local file storage does not mean offline processing.
 
 ![SourceNest data flow: Codex session to source record, validated memory, and project wiki](docs/architecture.svg)
 
@@ -15,24 +19,27 @@ If you change models later, the notes stay in the same JSON and Markdown files. 
 | move from Luna to another model | the same portable records and Markdown views |
 | work across several repositories | separate memory selected by the project path |
 
-The writing is deliberately plain. A generated item must point back to a message that exists in the local source record, so you can check the context instead of trusting a polished paragraph.
+Each extracted item links to a source message and quote. Those checks help you trace a claim; they do not prove that the model interpreted it correctly.
 
 ### The path from a conversation to a page
 
+<details>
+<summary>Detailed capture and summarization flow</summary>
+
 ~~~mermaid
-flowchart LR
+flowchart TD
     A[Codex session] -->|visible user and assistant text| B[Lifecycle hooks]
     B --> C[Immutable JSON event]
-    C --> D[Configured summarizer]
+    C --> D[Configured model provider]
     D -->|structured JSON| E[Local validation]
     E --> F[Project records]
     F --> G[Markdown topic wiki]
     F --> H[Daily log and decisions]
 ~~~
 
-The model proposes structured data. Local code checks the source IDs, evidence quotes, and schema before anything reaches the generated wiki.
+</details>
 
-A local, source-backed project memory for Codex on Windows.
+The model proposes structured data. Local code checks the source IDs, evidence quotes, and schema before anything reaches the generated wiki.
 
 [Türkçe kurulum ve kullanım](README.tr.md) · [Privacy](PRIVACY.md) · [Credits](CREDITS.md) · [MIT license](LICENSE)
 
@@ -70,6 +77,8 @@ python install.py --target "$BeyinVault" --codex-home "$BeyinCodexHome" --regist
 
 This prints the installation plan. To apply it:
 
+The example registry is empty. Installation connects no projects until you run the registration command below. If `python` is unavailable but `py -3 --version` reports Python 3.11 or newer, use `py -3` in place of `python` throughout these commands.
+
 ```powershell
 python install.py --target "$BeyinVault" --codex-home "$BeyinCodexHome" --registry projects.example.json --apply
 ```
@@ -100,9 +109,28 @@ python "$BeyinVault\engine\beyin.py" resume
 
 `pause` disables automatic capture; it does not terminate an already running worker. `resume` re-enables capture; use `process --retry` to explicitly retry processing after fixing errors. `doctor` checks login, queue and worker health; it is not a live model test. PDF input must first be converted to text. URLs are source metadata, not automatic downloads.
 
-## Storage and models
+## Where your memory lives
+
+```text
+Beyin/                         # private vault, outside the source repository
+├── config.json                # model and call limits
+├── projects.json              # registered project paths
+├── PROFILE.md                 # shared preferences
+└── projects/
+    ├── my-project/
+    │   ├── raw/               # captured events and imported sources
+    │   ├── records/           # validated structured summaries
+    │   ├── wiki/              # generated index and topic pages
+    │   ├── daily/             # generated daily logs
+    │   ├── STATUS.md
+    │   ├── DECISIONS.md
+    │   └── notes/             # your manually maintained notes
+    └── another-project/       # separate project memory
+```
 
 The private vault contains `projects/<id>/raw`, `records`, `wiki`, `daily`, `STATUS.md`, `DECISIONS.md`, and `notes`. Put manual notes in `notes`; generated views are rebuilt by the engine. Keep separate backups: local Git checkpoints are not an off-device backup.
+
+## Changing models and managing usage
 
 The default summarizer uses your Codex account, with at most 4 calls per run and 20 per UTC day across the vault. These are call limits, not monetary limits. Errors retain queued work; processing resumes on later hooks or an explicit retry, not a timer. Memory context and summarization consume tokens.
 

@@ -8,6 +8,7 @@ The public repository is software, not a personal vault. Install the vault elsew
 - Source text and topic names are sent to the configured model provider. Codex CLI uses the user's account. API or command-provider settings change this data flow.
 - No credentials are bundled. The API adapter reads its credential from an environment variable. Codex credentials are managed by Codex itself.
 - Raw records are preserved. Generated summaries include evidence references; their interpretation can still be wrong.
+- Imported documents are copied byte-for-byte into `raw/sources` before redaction. Pattern masking applies to the extracted event text, not that original document copy.
 - The private vault uses local Git checkpoints, which can retain older versions of information. Deleting a current file does not erase history or provider-side retention.
 - There is no built-in telemetry, remote upload of the vault, encryption, automatic remote backup or guaranteed capture after a crash.
 
