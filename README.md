@@ -1,4 +1,4 @@
-# SourceNest
+# SourceNest — persistent project memory for Codex
 
 ## Pick up a project without retelling its history
 
@@ -6,7 +6,7 @@ SourceNest is project memory for Codex on Windows. It captures new user and assi
 
 One private vault holds a separate folder for each project. The vault lives outside your code repositories. JSON records and Markdown pages remain readable when you change models; another assistant app still needs its own capture integration.
 
-[Install](#install-powershell) · [Türkçe rehber](README.tr.md) · [Validation](VALIDATION.md) · [Privacy](PRIVACY.md)
+[Install](#install-powershell) · [Common questions](#common-questions) · [Türkçe rehber](README.tr.md) · [Validation](VALIDATION.md) · [Privacy](PRIVACY.md)
 
 **Current scope:** early release, tested automatic integration with Windows + Codex CLI. Summaries currently use Turkish. The configured summarizer receives captured text, so local file storage does not mean offline processing.
 
@@ -137,6 +137,36 @@ The default summarizer uses your Codex account, with at most 4 calls per run and
 Change `summarizer` in the installed `config.json` to select a model/provider. `codex_cli` is live-tested; `openai_responses` and an explicit local `command` adapter exist but are not live-verified across providers. API use requires its own environment credential and billing. The command adapter receives the prompt on stdin and must return the summary JSON schema on stdout; `{model}` arguments are substituted without shell evaluation.
 
 Claude and normalized JSONL readers are covered by local tests, but automatic Claude integration is not installed. Switching apps requires its own capture integration. Files remain readable without any model.
+
+## Common questions
+
+### Does Codex remember previous sessions automatically?
+
+With SourceNest installed, its hooks trusted, and your project registered, a new supported Codex session receives that project's status and wiki index plus shared preferences. Capture and summarization add new material as you work. The startup context is bounded; it does not load every previous conversation.
+
+### Is this a second brain or an LLM wiki?
+
+SourceNest combines automatic session memory with a source-backed Markdown wiki. It is intended for ongoing coding projects: decisions and open work are kept with references to the messages behind them. It draws on the source-to-wiki and session-memory ideas acknowledged in [Credits](CREDITS.md).
+
+### Can I switch models without losing my notes?
+
+The stored JSON and Markdown files remain available when you change the summarizer. The selected model must support the expected structured output. Moving to another assistant application requires a capture integration for that app; automatic integration is currently tested with Codex CLI on Windows.
+
+### How do I search the memory?
+
+Open the project's wiki folder in an editor and use its text search. SourceNest stores ordinary Markdown and JSON files; it does not include a semantic search engine or a chat interface for the vault.
+
+### Is SourceNest local and free to use?
+
+The software is MIT-licensed and stores memory in a private local vault. Summarization sends captured text to the configured model provider and uses your account's quota or API billing. See [Privacy](PRIVACY.md) for the full data flow.
+
+### Can one installation serve several repositories?
+
+Yes. Register each project path once. A single vault holds separate project folders, and the current path selects the memory supplied to a session. Shared preferences live in the vault's PROFILE.md.
+
+## Help and contributions
+
+Maintained by [noon49-code](https://github.com/noon49-code). Report reproducible problems in [GitHub Issues](https://github.com/noon49-code/SourceNest/issues), including your Windows, Python and Codex CLI versions. Use synthetic examples instead of private transcripts. See [Contributing](CONTRIBUTING.md) for changes and [Validation](VALIDATION.md) for the tested scope.
 
 ## Tests
 
