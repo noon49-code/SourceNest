@@ -45,7 +45,7 @@ The model proposes structured data. Local code checks the source IDs, evidence q
 
 ## Status
 
-Early release, engine 1.1.2. Windows + Codex CLI is the live-tested automatic integration; Claude Code wiring and provider-neutral adapters are included. Python 3.11+ and Git are required. No third-party Python dependencies.
+Early release, engine 1.2.0. Windows + Codex CLI is the live-tested automatic integration; Claude Code wiring and provider-neutral adapters are included. Python 3.11+ and Git are required. No third-party Python dependencies.
 
 The engine was live-tested with Codex CLI 0.154.0-alpha.6.2 and `gpt-5.6-luna`. The default model must be available to your own account; change `summarizer.model` in the installed vault's `config.json` if needed. CLI flags and hook formats can change between releases. Markdown summaries and engine messages currently use Turkish.
 
@@ -62,6 +62,22 @@ Source text cannot choose output paths. Assistant proposals cannot become user d
 ## Install (PowerShell)
 
 Download and extract the repository, then open PowerShell in the extracted folder. Ensure `python` and `git` are available. Add the assistant homes you want to connect; Codex summarization also needs a working `codex login status`.
+
+For the shortest path, let the helper find Python, the usual Codex/Claude folders and your existing vault. It prints a plan first:
+
+```powershell
+powershell.exe -NoProfile -File .\setup.ps1
+```
+
+If the plan is correct, run the same helper with `-Apply`. It creates a new vault or upgrades an existing one automatically:
+
+```powershell
+powershell.exe -NoProfile -File .\setup.ps1 -Apply
+```
+
+Use `-NoCodex`, `-NoClaude`, `-CodexHome 'D:\...'`, `-ClaudeHome 'D:\...'` or `-Vault 'D:\...'` when your layout is different. Check the result later with `powershell.exe -NoProfile -File .\setup.ps1 -Verify`.
+
+The same helper can be launched from `setup.cmd` if you prefer a regular Windows command file.
 
 Choose a **new, private vault folder outside this repository**. Installation refuses to overwrite an existing vault.
 

@@ -2,6 +2,8 @@
 
 SourceNest separates **capture** from **summarization**. Capture adapters turn an assistant's visible conversation into the same source-backed event format; the summarizer later turns those events into validated records and Markdown pages. This keeps the vault portable when you change from Codex to Claude Code, Cursor, or another model provider.
 
+For a one-command Windows setup, run `setup.ps1` (or `setup.cmd`) from the extracted repository. It detects the bundled/runtime Python, the usual assistant homes and whether the vault needs a first install or an upgrade. It prints a plan by default; add `-Apply` to write it and `-Verify` to check it later.
+
 ## Codex and Claude Code
 
 The installer can connect both clients in one pass:

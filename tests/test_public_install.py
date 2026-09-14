@@ -86,3 +86,21 @@ class PublicInstallTests(unittest.TestCase):
             self.assertIn('User preference.', profile.read_text(encoding='utf-8'))
             self.assertIn(f'VERSION = "{install.beyin.VERSION}"', (vault / 'engine' / 'beyin.py').read_text(encoding='utf-8'))
             self.assertTrue((claude_home / 'settings.json').exists())
+
+    def test_verify_reports_selected_integrations(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            codex_home = base / 'fake-codex'
+            claude_home = base / 'fake-claude'
+            codex_home.mkdir()
+            claude_home.mkdir()
+            vault = base / 'vault'
+            registry = json.loads((PACKAGE / 'projects.example.json').read_text())
+            install.install(vault, codex_home, registry, claude_home)
+            report = install.verify(vault, codex_home, claude_home)
+            self.assertTrue(report['ok'])
+            self.assertEqual(report['engine']['version'], install.beyin.VERSION)
+            self.assertTrue(report['engine']['current'])
+            self.assertFalse(report['engine']['upgrade_needed'])
+            self.assertEqual(report['clients']['codex']['managed_hooks'], len(install.CODEX_EVENTS))
+            self.assertEqual(report['clients']['claude']['managed_hooks'], len(install.CLAUDE_EVENTS))

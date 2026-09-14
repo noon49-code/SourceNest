@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.0 — easier Windows setup
+
+- Add `setup.ps1` and `setup.cmd` wrappers with Python and assistant-home discovery.
+- Add automatic new-install versus existing-vault upgrade selection.
+- Add read-only `--verify` reporting for the vault, hooks and memory instruction files.
+
 ## 1.1.2 — resilient Windows launcher
 
 - Keep the bundled Codex runtime fallback in `Beyin.cmd` before trying `python.exe` on PATH.

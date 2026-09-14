@@ -1,8 +1,8 @@
 # Validation scope
 
-Engine 1.1.2 includes the fix for Codex AgentMessage content blocks with type Text and provider-neutral transcript adapters. The regression fixture preserves the observed event shape with synthetic message text.
+Engine 1.2.0 includes the fix for Codex AgentMessage content blocks with type Text and provider-neutral transcript adapters. The regression fixture preserves the observed event shape with synthetic message text.
 
-The local suite covers replay, incremental append, incomplete tails, long-message splitting, both conversation roles, Claude/Cursor/normalized transcript envelopes, prompt-hook fallback, tool/reasoning exclusion, evidence validation, proposal/decision distinction, project isolation, worker locks, failure queues, budget/auth pause, immutable source checks, deterministic wiki links and Codex/Claude integration merging.
+The local suite covers replay, incremental append, incomplete tails, long-message splitting, both conversation roles, Claude/Cursor/normalized transcript envelopes, prompt-hook fallback, tool/reasoning exclusion, evidence validation, proposal/decision distinction, project isolation, worker locks, failure queues, budget/auth pause, immutable source checks, deterministic wiki links, Codex/Claude integration merging and safe upgrade behavior. Setup and verification wrappers are exercised separately with temporary paths.
 
 Before preparing this public package, Windows + Codex CLI 0.154.0-alpha.6.2 was live-tested with gpt-5.6-luna: startup context, automatic user/assistant capture, background summary and source hashes passed. Those private test files are not shipped. This is not a claim that every Codex version or model account is compatible.
 

@@ -8,6 +8,7 @@ import datetime as dt
 import hashlib
 import json
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
@@ -22,6 +23,23 @@ CODEX_EVENTS = ("SessionStart", "Stop", "PreCompact", "SessionEnd", "Interrupt")
 CLAUDE_EVENTS = ("SessionStart", "UserPromptSubmit", "Stop", "PreCompact", "SessionEnd")
 # Kept as the public name used by existing scripts and tests.
 EVENTS = CODEX_EVENTS
+
+
+def _managed_commands(settings, target, adapter):
+    commands = []
+    hooks = settings.get("hooks", {}) if isinstance(settings, dict) else {}
+    for groups in hooks.values() if isinstance(hooks, dict) else []:
+        if not isinstance(groups, list):
+            continue
+        for group in groups:
+            for hook in group.get("hooks", []) if isinstance(group, dict) else []:
+                command = hook.get("command") if isinstance(hook, dict) else None
+                if isinstance(command, str) and str(target) in command and "beyin.py" in command:
+                    if adapter == "codex" and "--adapter" not in command:
+                        commands.append(command)
+                    elif adapter != "codex" and f"--adapter {adapter}" in command:
+                        commands.append(command)
+    return commands
 
 
 def _command(target, adapter=None):
@@ -118,6 +136,48 @@ def integrations(target, codex_home=None, claude_home=None):
     if claude_home is not None:
         changes.update(_claude_integrations(target, claude_home))
     return changes
+
+
+def verify(target, codex_home=None, claude_home=None):
+    """Read-only check of the vault and selected assistant integrations."""
+    target = target.resolve()
+    report = {"ok": True, "target": str(target), "engine": {}, "clients": {}}
+    engine_path = target / "engine" / "beyin.py"
+    report["engine"] = {"exists": engine_path.is_file(), "version": None,
+                        "expected_version": beyin.VERSION,
+                        "config": (target / "config.json").is_file(),
+                        "registry": (target / "projects.json").is_file()}
+    if engine_path.is_file():
+        text = engine_path.read_text(encoding="utf-8", errors="replace")
+        match = re.search(r'VERSION = ["\']([^"\']+)', text)
+        report["engine"]["version"] = match.group(1) if match else None
+    report["engine"]["current"] = report["engine"]["version"] == beyin.VERSION
+    report["engine"]["upgrade_needed"] = report["engine"]["exists"] and not report["engine"]["current"]
+    report["ok"] = all([report["engine"]["exists"], report["engine"]["config"],
+                        report["engine"]["registry"], report["engine"]["current"]])
+    for name, home, hook_file, memory_file, events, adapter in (
+        ("codex", codex_home, "hooks.json", "AGENTS.md", CODEX_EVENTS, "codex"),
+        ("claude", claude_home, "settings.json", "CLAUDE.md", CLAUDE_EVENTS, "claude"),
+    ):
+        if home is None:
+            continue
+        hook_path = home / hook_file
+        memory_path = home / memory_file
+        settings = beyin.read_json(hook_path, {})
+        present_events = sorted(set(settings.get("hooks", {}).keys()) if isinstance(settings, dict) and isinstance(settings.get("hooks", {}), dict) else set())
+        managed = _managed_commands(settings, target, adapter)
+        item = {"home": str(home), "settings": hook_path.is_file(),
+                "memory_file": memory_path.is_file(),
+                "memory_marker": False, "expected_events": list(events),
+                "present_events": present_events, "managed_hooks": len(managed)}
+        if memory_path.is_file():
+            item["memory_marker"] = BEGIN in memory_path.read_text(encoding="utf-8-sig")
+        item["ok"] = (item["settings"] and item["memory_file"] and item["memory_marker"]
+                      and all(event in present_events for event in events)
+                      and len(managed) >= len(events))
+        report["clients"][name] = item
+        report["ok"] = report["ok"] and item["ok"]
+    return report
 
 
 def plan(target, codex_home, registry, claude_home=None):
@@ -286,18 +346,24 @@ def main():
                    help="Connect an existing vault without replacing its data")
     p.add_argument("--upgrade", action="store_true",
                    help="Upgrade managed engine files in an existing vault")
+    p.add_argument("--verify", action="store_true",
+                   help="Read-only check of the vault and selected integrations")
     args = p.parse_args()
-    if not args.codex_home and not args.claude_home and not args.upgrade:
+    if not args.codex_home and not args.claude_home and not args.upgrade and not args.integrate and not args.verify:
         p.error("At least one of --codex-home or --claude-home is required")
     target = args.target.resolve()
     codex_home = args.codex_home.resolve() if args.codex_home else None
     claude_home = args.claude_home.resolve() if args.claude_home else None
-    if args.integrate and args.upgrade:
-        p.error("Use only one of --integrate or --upgrade")
+    if sum(bool(x) for x in (args.integrate, args.upgrade, args.verify)) > 1:
+        p.error("Use only one of --integrate, --upgrade or --verify")
+    if args.apply and (args.integrate or args.upgrade or args.verify):
+        p.error("--apply is only used for a new-vault install")
     if args.integrate:
         result = integrate(target, codex_home, claude_home)
     elif args.upgrade:
         result = upgrade(target, codex_home, claude_home)
+    elif args.verify:
+        result = verify(target, codex_home, claude_home)
     else:
         if not args.registry:
             p.error("--registry is required for a new vault plan/install")

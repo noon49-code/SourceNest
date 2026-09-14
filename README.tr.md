@@ -29,6 +29,22 @@ Windows, Python 3.11+ ve Git gerekir. Codex özetleyicisini kullanacaksan `codex
 
 Bu depoyu indir ve çıkart; PowerShell'i o klasörde aç. Aşağıdaki komutlar kişisel kasayı deponun dışında oluşturur:
 
+En kısa yol için yardımcı betik Python'u, yaygın Codex/Claude klasörlerini ve mevcut kasayı kendisi bulur. Önce yalnızca planı gösterir:
+
+```powershell
+powershell.exe -NoProfile -File .\setup.ps1
+```
+
+Plan doğruysa `-Apply` ile uygula. Hedefte kasa yoksa oluşturur, varsa güvenli yükseltme yolunu seçer:
+
+```powershell
+powershell.exe -NoProfile -File .\setup.ps1 -Apply
+```
+
+Farklı konumlar için `-NoCodex`, `-NoClaude`, `-CodexHome 'D:\...'`, `-ClaudeHome 'D:\...'` veya `-Vault 'D:\...'` kullanabilirsin. Sonucu daha sonra `powershell.exe -NoProfile -File .\setup.ps1 -Verify` ile kontrol et.
+
+Aynı yardımcıyı normal Windows komut dosyası olarak `setup.cmd` ile de çalıştırabilirsin.
+
 ```powershell
 $BeyinVault = Join-Path $env:USERPROFILE 'Documents\Beyin'
 $BeyinCodexHome = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $env:USERPROFILE '.codex' }
