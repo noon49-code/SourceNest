@@ -9,4 +9,4 @@ Conceptual inspiration:
 
 This repository is not an official release, endorsed integration, or distribution of those complete projects. Links acknowledge ideas; upstream projects retain their own licenses and authorship. The MIT license here applies to this implementation, not to linked third-party materials.
 
-Runtime integrations use Python, Git and Codex installed separately by the user. No upstream repository, credential, private transcript or model weight is bundled.
+Runtime integrations use Python, Git and whichever assistant CLI the user chooses. Codex and Claude Code hook formats are handled by small local adapters; no upstream repository, credential, private transcript or model weight is bundled.

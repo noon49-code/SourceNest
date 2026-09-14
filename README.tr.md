@@ -1,18 +1,18 @@
-# SourceNest · Türkçe rehber
+# SourceNest · yapay zekâ kodlama asistanları için taşınabilir proje hafızası
 
 ## Projeye döndüğünde her şeyi baştan anlatma
 
-SourceNest, Windows üzerinde Codex için proje hafızasıdır. Kayıtlı projelerdeki yeni kullanıcı ve asistan mesajlarını yakalar; kararları, tercihleri, düzeltmeleri ve açık işleri kaynak bağlantılarıyla Markdown sayfalarına derler.
+SourceNest, Codex, Claude Code, Cursor ve benzeri yapay zekâ kodlama araçları arasında proje bağlamını korur. Kayıtlı projelerdeki görünür kullanıcı ve asistan mesajlarını yakalar; kararları, tercihleri, düzeltmeleri ve açık işleri kaynak bağlantılarıyla Markdown sayfalarına derler.
 
-Tek bir özel kasa, kod depolarının dışında durur; her projenin hafızası bu kasanın ayrı bir klasöründedir. Modeli değiştirsen bile JSON ve Markdown dosyalarını okuyabilirsin. Başka bir asistan uygulamasına geçiş için o uygulamaya uygun otomatik kayıt bağlantısı gerekir.
+Tek bir özel kasa, kod depolarının dışında durur; her projenin hafızası bu kasanın ayrı bir klasöründedir. Çekirdek kayıt biçimi model sağlayıcısına bağlı değildir. Codex ve Claude Code için yaşam döngüsü kancaları, dışa aktarma veya akış sunan diğer araçlar için standart JSONL köprüsü vardır.
 
-**Mevcut kapsam:** erken sürüm; otomatik bağlantı Windows + Codex CLI ile test edildi. Özetler Türkçe üretilir. Yakalanan metin seçilen model sağlayıcısına gönderilir; dosyaların yerelde olması işlemenin çevrimdışı olduğu anlamına gelmez.
+**Mevcut kapsam:** erken sürüm; Windows + Codex CLI ile canlı yakalama test edildi. Claude Code kanca dosyaları ve Cursor/standart JSONL adaptörleri sentetik testlerle doğrulandı. Özetler Türkçe üretilir. Yakalanan metin seçilen model sağlayıcısına gönderilir; dosyaların yerelde olması işlemenin çevrimdışı olduğu anlamına gelmez.
 
 ![SourceNest veri akışı: oturumdan kaynak kaydına ve proje wiki'sine](docs/architecture.svg)
 
 ~~~mermaid
 flowchart TD
-    A[Codex oturumu] -->|kullanıcı ve asistan metni| B[Yaşam döngüsü kancaları]
+    A[Codex / Claude / diğer oturum] -->|kullanıcı ve asistan metni| B[Yaşam kancaları veya JSONL köprüsü]
     B --> C[Değişmez JSON kaynak kaydı]
     C --> D[Seçilen özetleyici]
     D --> E[Yerel doğrulama]
@@ -23,7 +23,7 @@ Karpathy'nin kaynak → wiki yaklaşımı ve Avenox'un oturum hafızası fikrind
 
 ## Gerekenler
 
-Windows, Python 3.11+, Git ve çalışan Codex CLI girişi. `python`, `git`, `codex` komutları terminalden erişilebilir olmalı. Otomatik bağlantı Windows + Codex üzerinde test edildi. Varsayılan `gpt-5.6-luna` modelinin hesabında kullanılabilir olması gerekir; model değiştirilebilir. Özetler şu an Türkçe üretilir.
+Windows, Python 3.11+ ve Git gerekir. Codex özetleyicisini kullanacaksan `codex login status` çalışır durumda olmalıdır. Otomatik Codex ve Claude Code bağlantıları Windows için hazırlanır; varsayılan `gpt-5.6-luna` modelinin hesabında kullanılabilir olması gerekir. Model değiştirilebilir. Özetler şu an Türkçe üretilir.
 
 ## Kurulum
 
@@ -32,21 +32,30 @@ Bu depoyu indir ve çıkart; PowerShell'i o klasörde aç. Aşağıdaki komutlar
 ```powershell
 $BeyinVault = Join-Path $env:USERPROFILE 'Documents\Beyin'
 $BeyinCodexHome = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $env:USERPROFILE '.codex' }
+$BeyinClaudeHome = Join-Path $env:USERPROFILE '.claude'
 codex login status
-python install.py --target "$BeyinVault" --codex-home "$BeyinCodexHome" --registry projects.example.json
+python install.py --target "$BeyinVault" --codex-home "$BeyinCodexHome" --claude-home "$BeyinClaudeHome" --registry projects.example.json
 ```
 
 Planı kontrol ettikten sonra uygula:
 
 ```powershell
-python install.py --target "$BeyinVault" --codex-home "$BeyinCodexHome" --registry projects.example.json --apply
+python install.py --target "$BeyinVault" --codex-home "$BeyinCodexHome" --claude-home "$BeyinClaudeHome" --registry projects.example.json --apply
 ```
 
 Hedef klasör önceden varsa kurucu durur. Mevcut kasanın üzerine yeniden kurma.
 
 Örnek proje listesi boştur. Aşağıdaki kayıt komutunu çalıştırana kadar hiçbir proje bağlanmaz. `python` bulunamıyorsa ve `py -3 --version` Python 3.11 veya üzerini gösteriyorsa komutlarda `python` yerine `py -3` kullan.
 
-Terminalde `codex` aç, `/hooks` yaz. Kurduğun kasadaki `engine/beyin.py` dosyasını çalıştıran SessionStart, Stop, PreCompact, SessionEnd ve Interrupt kancalarını inceleyip güvenilir olarak işaretle. Kurucu güven onayını değiştirmez. İlgisiz kancaları topluca onaylama.
+Kurucu, Codex `hooks.json` ve Claude Code `settings.json` içine kancaları ekler; ayrıca Codex `AGENTS.md` ve Claude `CLAUDE.md` içine sınırlı hafıza yönergesi koyar. Mevcut dosyalar kasanın `.backups` klasöründe yedeklenir. Kurucu güven veya izin kararlarını değiştirmez. Her aracın ayarlarında eklenen komutları inceleyip etkinleştir.
+
+Kasa zaten varsa yalnızca bağlantıyı eklemek için:
+
+```powershell
+python install.py --target "$BeyinVault" --codex-home "$BeyinCodexHome" --claude-home "$BeyinClaudeHome" --integrate
+```
+
+Araç biçimleri ve dışa aktarma yolu için [asistan bağlantıları](docs/integrations.md) sayfasına bak. Bütün yapay zekâ uygulamalarının ortak kullandığı tek bir kanca standardı yoktur; kanca sunmayan araçlar JSONL köprüsünü kullanır.
 
 ## Yeni proje ekle
 
@@ -57,7 +66,7 @@ python "$BeyinVault\engine\beyin.py" register --project yeni-proje --path 'D:\Pr
 python "$BeyinVault\engine\beyin.py" doctor
 ```
 
-Proje kimliği küçük İngilizce harf, rakam ve tire kullanır. O proje klasöründe yeni Codex sohbeti aç. Her sohbette yeniden kayıt veya `/hooks` onayı gerekmez. Bu işlemi her yeni proje için bir kez yap.
+Proje kimliği küçük İngilizce harf, rakam ve tire kullanır. O proje klasöründe yeni Codex veya Claude Code oturumu aç. Her oturumda yeniden kayıt veya kanca kurulumu gerekmez. Bu işlemi her yeni proje için bir kez yap.
 
 ## Ne kaydedilir?
 
@@ -76,6 +85,14 @@ python "$BeyinVault\engine\beyin.py" resume
 ```
 
 `pause` yeni otomatik yakalamayı kapatır; çalışan işleyiciyi zorla durdurmaz. Başka uygulamaya geçişte o uygulamanın otomatik kayıt bağlantısı ayrıca gerekir. OpenAI API ve özel komut bağlantısı mevcut olsa da sağlayıcılar arası canlı geçiş doğrulanmadı.
+
+Codex ve Claude Code yaşam kancalarını kullanır. Cursor veya dışa aktarma sunan başka bir araç için:
+
+```powershell
+python "$BeyinVault\engine\beyin.py" capture-file --project yeni-proje --file 'D:\Exports\session.jsonl' --adapter normalized --session dis-session
+```
+
+`cursor` adaptörü `type` + `message.role` + `message.content` biçimini, `normalized` adaptörü ise `role` + `content` biçimini okur. Yakalama biçimi ile özetleyici birbirinden ayrıdır; model değiştirince kasa formatı değişmez.
 
 Kişisel kasanı ve Git geçmişini herkese açık paylaşma. Düzenli ayrı yedek al. Özetler hatalı olabilir; kaynak ve tarihleri kontrol et. Ayrıntılar: [gizlilik](PRIVACY.md), [komutlar ve kaldırma](README.md), [esin kaynakları](CREDITS.md).
 

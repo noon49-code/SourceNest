@@ -1,16 +1,16 @@
-# SourceNest — persistent project memory for Codex
+# SourceNest — portable project memory for AI coding assistants
 
 ## Pick up a project without retelling its history
 
-SourceNest is project memory for Codex on Windows. It captures new user and assistant messages from registered projects and compiles decisions, preferences, corrections, and open work into Markdown pages with links to the source messages.
+SourceNest keeps project context across Codex, Claude Code, Cursor, and other AI coding tools on Windows. It captures visible user and assistant messages from registered projects, then compiles decisions, preferences, corrections, and open work into Markdown pages with links back to the source messages.
 
-One private vault holds a separate folder for each project. The vault lives outside your code repositories. JSON records and Markdown pages remain readable when you change models; another assistant app still needs its own capture integration.
+One private vault holds a separate folder for each project. The vault lives outside your code repositories. Its JSON records and Markdown pages do not depend on a model vendor, so you can change assistants or summarizers without rewriting the memory format. Automatic lifecycle hooks are available for Codex and Claude Code; a normalized JSONL bridge covers tools that expose an export or stream instead of a compatible hook.
 
 [Install](#install-powershell) · [Common questions](#common-questions) · [Türkçe rehber](README.tr.md) · [Validation](VALIDATION.md) · [Privacy](PRIVACY.md)
 
-**Current scope:** early release, tested automatic integration with Windows + Codex CLI. Summaries currently use Turkish. The configured summarizer receives captured text, so local file storage does not mean offline processing.
+**Current scope:** early release, with live capture tested on Windows + Codex CLI. Claude Code hook files and Cursor/normalized adapters are covered by local fixtures. Summaries currently use Turkish. The configured summarizer receives captured text, so local file storage does not mean offline processing.
 
-![SourceNest data flow: Codex session to source record, validated memory, and project wiki](docs/architecture.svg)
+![SourceNest data flow: assistant session to source record, validated memory, and project wiki](docs/architecture.svg)
 
 | When you need to… | SourceNest keeps… |
 | --- | --- |
@@ -28,7 +28,7 @@ Each extracted item links to a source message and quote. Those checks help you t
 
 ~~~mermaid
 flowchart TD
-    A[Codex session] -->|visible user and assistant text| B[Lifecycle hooks]
+    A[Codex / Claude / other session] -->|visible user and assistant text| B[Lifecycle hooks or JSONL bridge]
     B --> C[Immutable JSON event]
     C --> D[Configured model provider]
     D -->|structured JSON| E[Local validation]
@@ -45,7 +45,7 @@ The model proposes structured data. Local code checks the source IDs, evidence q
 
 ## Status
 
-Early release, engine 1.0.1. Windows + Codex CLI is the tested automatic integration. Python 3.11+ and Git are required. No third-party Python dependencies.
+Early release, engine 1.1.0. Windows + Codex CLI is the live-tested automatic integration; Claude Code wiring and provider-neutral adapters are included. Python 3.11+ and Git are required. No third-party Python dependencies.
 
 The engine was live-tested with Codex CLI 0.154.0-alpha.6.2 and `gpt-5.6-luna`. The default model must be available to your own account; change `summarizer.model` in the installed vault's `config.json` if needed. CLI flags and hook formats can change between releases. Markdown summaries and engine messages currently use Turkish.
 
@@ -53,7 +53,7 @@ The engine was live-tested with Codex CLI 0.154.0-alpha.6.2 and `gpt-5.6-luna`. 
 
 1. Register a project directory once.
 2. SessionStart supplies that project's status and index, plus shared preferences.
-3. Stop, PreCompact, SessionEnd and Interrupt hooks capture new visible user/assistant text.
+3. Lifecycle hooks capture new visible user/assistant text. The adapter identifies the source format; it does not change the vault schema.
 4. A background summarizer returns structured JSON. Local code validates evidence quotes, source IDs and schema.
 5. Deterministic rendering creates a topic wiki, daily records and decision history.
 
@@ -61,7 +61,7 @@ Source text cannot choose output paths. Assistant proposals cannot become user d
 
 ## Install (PowerShell)
 
-Download and extract the repository, then open PowerShell in the extracted folder. Ensure `python`, `git` and `codex` are available and `codex login status` reports a working login.
+Download and extract the repository, then open PowerShell in the extracted folder. Ensure `python` and `git` are available. Add the assistant homes you want to connect; Codex summarization also needs a working `codex login status`.
 
 Choose a **new, private vault folder outside this repository**. Installation refuses to overwrite an existing vault.
 
@@ -72,7 +72,8 @@ codex --version
 codex login status
 $BeyinVault = Join-Path $env:USERPROFILE 'Documents\Beyin'
 $BeyinCodexHome = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $env:USERPROFILE '.codex' }
-python install.py --target "$BeyinVault" --codex-home "$BeyinCodexHome" --registry projects.example.json
+$BeyinClaudeHome = Join-Path $env:USERPROFILE '.claude'
+python install.py --target "$BeyinVault" --codex-home "$BeyinCodexHome" --claude-home "$BeyinClaudeHome" --registry projects.example.json
 ```
 
 This prints the installation plan. To apply it:
@@ -80,10 +81,18 @@ This prints the installation plan. To apply it:
 The example registry is empty. Installation connects no projects until you run the registration command below. If `python` is unavailable but `py -3 --version` reports Python 3.11 or newer, use `py -3` in place of `python` throughout these commands.
 
 ```powershell
-python install.py --target "$BeyinVault" --codex-home "$BeyinCodexHome" --registry projects.example.json --apply
+python install.py --target "$BeyinVault" --codex-home "$BeyinCodexHome" --claude-home "$BeyinClaudeHome" --registry projects.example.json --apply
 ```
 
-The installer merges five hooks into the user hooks file and adds a scoped memory block to AGENTS.md (or an existing nonempty AGENTS.override.md). Existing integration files are backed up inside the private vault. It does not change hook trust. In interactive `codex`, open `/hooks`, review the five commands pointing to your vault, and trust them. Start a fresh session in a registered project.
+The installer merges five Codex lifecycle hooks into `hooks.json` and five Claude Code hooks into `settings.json`, then adds a scoped memory block to Codex `AGENTS.md` and Claude `CLAUDE.md`. Existing integration files are backed up inside the private vault. It does not change hook trust or permissions. Review the generated commands in each assistant before enabling them, then start a fresh session in a registered project.
+
+If the vault already exists, use the integration-only command. It updates only the selected assistant files and creates a dated backup:
+
+```powershell
+python install.py --target "$BeyinVault" --codex-home "$BeyinCodexHome" --claude-home "$BeyinClaudeHome" --integrate
+```
+
+See [assistant integrations](docs/integrations.md) for Claude Code settings, Cursor exports and the normalized JSONL shape. There is no universal hook format shared by every AI application; tools without a transcript hook use the bridge described there.
 
 ## Register a project
 
@@ -101,6 +110,7 @@ Project IDs use lowercase ASCII letters, digits and hyphens. Paths determine the
 ```powershell
 python "$BeyinVault\engine\beyin.py" context --cwd 'D:\Projects\MyProject'
 python "$BeyinVault\engine\beyin.py" ingest --project my-project --file 'D:\Documents\Research.md' --title 'Research'
+python "$BeyinVault\engine\beyin.py" capture-file --project my-project --file 'D:\Exports\session.jsonl' --adapter normalized --session exported-session
 python "$BeyinVault\engine\beyin.py" process --retry
 python "$BeyinVault\engine\beyin.py" rebuild --project my-project
 python "$BeyinVault\engine\beyin.py" pause
@@ -136,13 +146,13 @@ The default summarizer uses your Codex account, with at most 4 calls per run and
 
 Change `summarizer` in the installed `config.json` to select a model/provider. `codex_cli` is live-tested; `openai_responses` and an explicit local `command` adapter exist but are not live-verified across providers. API use requires its own environment credential and billing. The command adapter receives the prompt on stdin and must return the summary JSON schema on stdout; `{model}` arguments are substituted without shell evaluation.
 
-Claude and normalized JSONL readers are covered by local tests, but automatic Claude integration is not installed. Switching apps requires its own capture integration. Files remain readable without any model.
+Codex and Claude Code use lifecycle hooks; Cursor and other tools can feed a compatible JSONL export through `capture-file`. The capture adapter and summarizer provider are separate: changing the model does not change stored records. Files remain readable without any model.
 
 ## Common questions
 
-### Does Codex remember previous sessions automatically?
+### Do Codex and Claude Code remember previous sessions automatically?
 
-With SourceNest installed, its hooks trusted, and your project registered, a new supported Codex session receives that project's status and wiki index plus shared preferences. Capture and summarization add new material as you work. The startup context is bounded; it does not load every previous conversation.
+With SourceNest installed, its hooks enabled, and your project registered, a new Codex or Claude Code session receives that project's status and wiki index plus shared preferences. Capture and summarization add new material as you work. The startup context is bounded; it does not load every previous conversation.
 
 ### Is this a second brain or an LLM wiki?
 
@@ -150,7 +160,7 @@ SourceNest combines automatic session memory with a source-backed Markdown wiki.
 
 ### Can I switch models without losing my notes?
 
-The stored JSON and Markdown files remain available when you change the summarizer. The selected model must support the expected structured output. Moving to another assistant application requires a capture integration for that app; automatic integration is currently tested with Codex CLI on Windows.
+The stored JSON and Markdown files remain available when you change the summarizer or assistant. A provider must return the expected structured output; the `command` adapter lets you wrap a local CLI that does so. Apps without a transcript hook need an export or bridge, while the vault itself stays unchanged.
 
 ### How do I search the memory?
 
@@ -166,7 +176,7 @@ Yes. Register each project path once. A single vault holds separate project fold
 
 ## Help and contributions
 
-Maintained by [noon49-code](https://github.com/noon49-code). Report reproducible problems in [GitHub Issues](https://github.com/noon49-code/SourceNest/issues), including your Windows, Python and Codex CLI versions. Use synthetic examples instead of private transcripts. See [Contributing](CONTRIBUTING.md) for changes and [Validation](VALIDATION.md) for the tested scope.
+Maintained by [noon49-code](https://github.com/noon49-code). Report reproducible problems in [GitHub Issues](https://github.com/noon49-code/SourceNest/issues), including your Windows, Python and assistant/CLI versions. Use synthetic examples instead of private transcripts. See [Contributing](CONTRIBUTING.md) for changes and [Validation](VALIDATION.md) for the tested scope.
 
 ## Tests
 
@@ -174,11 +184,11 @@ Maintained by [noon49-code](https://github.com/noon49-code). Report reproducible
 python -m unittest discover -s tests -v
 ```
 
-Tests run in temporary directories and do not call a model. The existing engine was additionally tested with real Codex lifecycle capture, both conversation roles, background Luna summarization and source hashes. Private transcripts and live reports are deliberately excluded from this repository. See [VALIDATION.md](VALIDATION.md).
+Tests run in temporary directories and do not call a model. The engine was additionally tested with real Codex lifecycle capture, both conversation roles, background Luna summarization and source hashes. Claude hook settings, Cursor-shaped records, normalized JSONL capture and integration-only upgrades are covered by synthetic tests. Private transcripts and live reports are deliberately excluded from this repository. See [VALIDATION.md](VALIDATION.md).
 
 ## Disable or remove
 
-Run `pause` first. Remove only the five commands pointing to this vault from your user `hooks.json` and the `BEGIN BEYIN PORTABLE MEMORY` block from the relevant global AGENTS file. Preserve other hooks and instructions. Restart sessions. Backups under the vault's `.backups` are for inspection; restoring whole files could overwrite later unrelated edits. Your vault data remains available.
+Run `pause` first. Remove only the commands pointing to this vault from Codex `hooks.json` and/or Claude `settings.json`, plus the `BEGIN BEYIN PORTABLE MEMORY` block from the relevant `AGENTS`/`CLAUDE.md` file. Preserve other hooks and instructions. Restart sessions. Backups under the vault's `.backups` are for inspection; restoring whole files could overwrite later unrelated edits. Your vault data remains available.
 
 ## Scope
 

@@ -22,10 +22,12 @@ import time
 import urllib.request
 import uuid
 
-VERSION = "1.0.1"
+VERSION = "1.1.0"
 ROOT = Path(__file__).resolve().parents[1]
 KINDS = ["decision", "preference", "reported_fact", "proposal", "open_task", "completed_task", "correction", "question"]
 LABELS = dict(zip(KINDS, ["Karar", "Tercih", "Bildirilen bilgi", "Öneri", "Açık iş", "Tamamlandığı bildirilen iş", "Düzeltme", "Soru"]))
+TRANSCRIPT_ADAPTERS = ("codex", "claude", "cursor", "normalized")
+CAPTURE_EVENTS = ("Stop", "PreCompact", "SessionEnd", "Interrupt", "UserPromptSubmit")
 SCHEMA = {
     "type": "object", "additionalProperties": False,
     "properties": {
@@ -210,10 +212,19 @@ def redact(text):
 def text_content(value):
     if isinstance(value, str):
         return value
+    if isinstance(value, dict):
+        # A few CLI formats wrap a single text block in an object. Keep the
+        # allowlist explicit so tool calls, images and hidden reasoning never
+        # become project memory by accident.
+        if value.get("type") in ("text", "Text", "input_text", "output_text"):
+            return str(value.get("text", ""))
+        return ""
     if isinstance(value, list):
         # Current Codex AgentMessage blocks use "Text"; UserMessage and older
         # adapters use "text". Keep an explicit allowlist to exclude tool data.
-        return "\n".join(x.get("text", "") for x in value if isinstance(x, dict) and x.get("type") in ("text", "Text", "input_text", "output_text"))
+        return "\n".join(str(x.get("text", "")) for x in value
+                           if isinstance(x, dict) and x.get("type") in ("text", "Text", "input_text", "output_text")
+                           and isinstance(x.get("text", ""), str))
     return ""
 
 
@@ -234,14 +245,20 @@ def message_from(record, adapter):
             content = item.get("content", "")
         else:
             return None
-    elif adapter == "claude":
-        message = record.get("message", {})
-        role = message.get("role", record.get("type"))
-        content = message.get("content", "")
-    elif adapter == "normalized":
-        role, content = record.get("role"), record.get("content", "")
+    elif adapter in ("claude", "cursor", "normalized"):
+        # Claude Code transcripts and Cursor's JSONL stream use the same
+        # message envelope in their current CLIs. Normalized input accepts it
+        # too, which makes exports easy to bridge without changing the vault.
+        message = record.get("message")
+        message = message if isinstance(message, dict) else {}
+        role = message.get("role") or record.get("role") or record.get("type")
+        content = message.get("content") if "content" in message else record.get("content", "")
     else:
         raise ValueError("Unsupported transcript adapter")
+    if not isinstance(role, str):
+        return None
+    role_aliases = {"human": "user", "user_message": "user", "assistant_message": "assistant"}
+    role = role_aliases.get(role, role)
     if role not in ("user", "assistant"):
         return None
     text = redact(text_content(content)).strip()
@@ -336,6 +353,28 @@ def capture(root, project, payload, adapter):
         return count
 
 
+def capture_prompt(root, project, payload, adapter):
+    """Capture a prompt when a tool exposes a prompt hook but no transcript.
+
+    This is a fallback for lightweight bridges. Full transcript hooks remain
+    preferred because they preserve both roles and the source cursor.
+    """
+    session = str(payload.get("session_id", ""))
+    text = redact(text_content(payload.get("prompt", ""))).strip()
+    if not session or not text:
+        return 0
+    session_key = digest(adapter + ":" + session)[:24]
+    prompt_hash = digest(text)
+    event_id = digest(session_key + ":prompt:" + prompt_hash)[:32]
+    message = {"id": "p-" + prompt_hash[:24], "role": "user", "text": text,
+               "timestamp": str(payload.get("timestamp", ""))}
+    origin = {"type": "prompt", "adapter": adapter, "session_id": session,
+              "cwd": str(payload.get("cwd", ""))}
+    save_event(root, project, [message], event_id, origin)
+    note_health(root, "capture", "ok", f"{project['id']}: prompt fallback")
+    return 1
+
+
 def start_worker(root):
     cfg = config(root)
     if not cfg.get("auto_process", True) or os.environ.get("BEYIN_WORKER"):
@@ -390,8 +429,11 @@ def hook(root, adapter):
         print(json.dumps({"hookSpecificOutput": {"hookEventName": "SessionStart",
                          "additionalContext": context_for(root, project)}}, ensure_ascii=True))
         return
-    if event in ("Stop", "PreCompact", "SessionEnd", "Interrupt"):
-        capture(root, project, payload, adapter)
+    if event in CAPTURE_EVENTS:
+        if payload.get("transcript_path"):
+            capture(root, project, payload, adapter)
+        elif event == "UserPromptSubmit":
+            capture_prompt(root, project, payload, adapter)
         start_worker(root)
     print("{}")
 
@@ -467,7 +509,7 @@ def run_model(root, event, topics):
         if result.returncode:
             # No tokens, transcript fragments or full stderr go into health logs.
             combined = (result.stderr + result.stdout).lower()
-            if "not logged" in combined or "unauthorized" in combined or "401" in combined or "authentication" in combined:
+            if provider == "codex_cli" and ("not logged" in combined or "unauthorized" in combined or "401" in combined or "authentication" in combined):
                 raise ValueError("Codex CLI oturum açılması gerekiyor (codex login)")
             raise ValueError(f"Model çalıştırıcısı başarısız: exit {result.returncode}")
         usage = {}
@@ -706,6 +748,9 @@ def doctor(root):
             checks["codex_login"] = type(exc).__name__
     elif cfg["summarizer"]["provider"] == "openai_responses":
         checks["api_key_present"] = bool(os.environ.get(cfg["summarizer"].get("api_key_env", "OPENAI_API_KEY")))
+    elif cfg["summarizer"]["provider"] == "command":
+        argv = cfg["summarizer"].get("argv", [])
+        checks["command_configured"] = bool(argv and all(isinstance(x, str) for x in argv))
     return checks
 
 
@@ -736,7 +781,7 @@ def main():
     parser.add_argument("--root", type=Path, default=ROOT)
     commands = parser.add_subparsers(dest="command", required=True)
     h = commands.add_parser("hook")
-    h.add_argument("--adapter", choices=["codex", "claude", "normalized"], default="codex")
+    h.add_argument("--adapter", choices=TRANSCRIPT_ADAPTERS, default="codex")
     p = commands.add_parser("process")
     p.add_argument("--retry", action="store_true")
     commands.add_parser("doctor")
@@ -749,6 +794,12 @@ def main():
     i.add_argument("--file", type=Path, required=True)
     i.add_argument("--title", default="")
     i.add_argument("--url", default="")
+    cf = commands.add_parser("capture-file", help="Capture a JSONL transcript from another assistant")
+    cf.add_argument("--project", required=True)
+    cf.add_argument("--file", type=Path, required=True)
+    cf.add_argument("--adapter", choices=TRANSCRIPT_ADAPTERS, default="normalized")
+    cf.add_argument("--session", default="")
+    cf.add_argument("--cwd", default="")
     reg = commands.add_parser("register")
     reg.add_argument("--project", required=True)
     reg.add_argument("--path", type=Path, required=True)
@@ -779,6 +830,17 @@ def main():
                 if not held:
                     raise ValueError("Worker busy; retry ingest")
                 result = ingest(root, args.project, args.file, args.title, args.url)
+            start_worker(root)
+        elif args.command == "capture-file":
+            project = get_project(root, args.project)
+            session = args.session or "file-" + digest(str(args.file.resolve()))[:24]
+            payload = {"transcript_path": str(args.file.resolve()), "session_id": session,
+                       "cwd": args.cwd or (project.get("paths") or [""])[0]}
+            with lock(root / ".state" / "worker.lock") as held:
+                if not held:
+                    raise ValueError("Worker busy; retry capture")
+                result = {"batches": capture(root, project, payload, args.adapter),
+                          "project_id": project["id"], "adapter": args.adapter}
             start_worker(root)
         elif args.command == "register":
             result = register(root, args.project, args.path, args.name)

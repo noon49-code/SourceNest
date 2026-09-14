@@ -1,4 +1,5 @@
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
@@ -87,6 +88,26 @@ class MemoryTests(unittest.TestCase):
         claude = {"message": {"role": "user", "content": [{"type": "text", "text": "Merhaba"}, {"type": "tool_result", "content": "hidden"}]}}
         self.assertEqual(beyin.message_from(claude, "claude")["text"], "Merhaba")
         self.assertEqual(beyin.message_from({"role": "assistant", "content": "Yanıt"}, "normalized")["role"], "assistant")
+
+    def test_claude_and_cursor_transcript_envelopes(self):
+        records = [
+            {"type": "user", "message": {"role": "user", "content": "Kullanıcı metni"}},
+            {"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": "Asistan metni"}, {"type": "thinking", "thinking": "gizli"}]}},
+        ]
+        for adapter in ("claude", "cursor", "normalized"):
+            self.assertEqual(beyin.message_from(records[0], adapter)["role"], "user")
+            self.assertEqual(beyin.message_from(records[1], adapter)["text"], "Asistan metni")
+
+    def test_prompt_hook_fallback_keeps_user_text_without_transcript(self):
+        payload = json.dumps({"hook_event_name": "UserPromptSubmit", "session_id": "s1",
+                              "cwd": self.project["paths"][0], "prompt": "Kayıt için kısa soru."})
+        with patch("sys.stdin", io.StringIO(payload)):
+            beyin.hook(self.root, "claude")
+        events = list((self.root / "projects/alpha/raw/events").glob("*.json"))
+        self.assertEqual(len(events), 1)
+        event = beyin.read_json(events[0])
+        self.assertEqual(event["origin"]["type"], "prompt")
+        self.assertEqual(event["messages"][0]["text"], "Kayıt için kısa soru.")
 
     def test_current_codex_item_completed_captures_both_roles(self):
         # Shapes observed in a real Codex 0.154.0 transcript, with fixture text.
@@ -221,6 +242,24 @@ class MemoryTests(unittest.TestCase):
         hooks = json.loads(second[home / "hooks.json"])
         self.assertEqual(hooks["hooks"]["Stop"][0]["hooks"][0], original_hook)
         self.assertIn("Existing rule: do not publish.", second[home / "AGENTS.md"])
+
+    def test_claude_integration_merges_settings_and_user_memory(self):
+        home = Path(self.temp.name) / "claude-home"
+        home.mkdir()
+        (home / "CLAUDE.md").write_text("Existing Claude rule.\n")
+        beyin.atomic(home / "settings.json", {"permissions": {"deny": ["rm -rf"]},
+                                               "hooks": {"Stop": [{"hooks": [{"type": "command", "command": "existing-check"}]}]}})
+        first = install.integrations(self.root, claude_home=home)
+        for path, content in first.items():
+            beyin.atomic(path, content)
+        second = install.integrations(self.root, claude_home=home)
+        self.assertEqual(first, second)
+        settings = json.loads(second[home / "settings.json"])
+        self.assertEqual(settings["permissions"]["deny"], ["rm -rf"])
+        self.assertEqual(set(settings["hooks"]), set(install.CLAUDE_EVENTS))
+        commands = [h["command"] for groups in settings["hooks"].values() for group in groups for h in group["hooks"]]
+        self.assertTrue(any("--adapter claude" in command for command in commands))
+        self.assertIn("Existing Claude rule.", second[home / "CLAUDE.md"])
 
     def test_redaction(self):
         text = "api_key=sk-abcdefghijklmnopqrstuvwxyz password=hunter2 Bearer abc123"

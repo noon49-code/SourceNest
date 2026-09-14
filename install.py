@@ -1,4 +1,7 @@
-"""Prepare/apply a scoped, reversible Windows installation. No credentials or trust edits."""
+"""Prepare/apply a scoped, reversible Windows installation for assistant clients.
+
+No credentials, trust decisions or existing vault data are edited implicitly.
+"""
 from __future__ import annotations
 import argparse
 import datetime as dt
@@ -15,33 +18,22 @@ import beyin
 
 BEGIN = "<!-- BEGIN BEYIN PORTABLE MEMORY -->"
 END = "<!-- END BEYIN PORTABLE MEMORY -->"
-EVENTS = ("SessionStart", "Stop", "PreCompact", "SessionEnd", "Interrupt")
+CODEX_EVENTS = ("SessionStart", "Stop", "PreCompact", "SessionEnd", "Interrupt")
+CLAUDE_EVENTS = ("SessionStart", "UserPromptSubmit", "Stop", "PreCompact", "SessionEnd")
+# Kept as the public name used by existing scripts and tests.
+EVENTS = CODEX_EVENTS
 
 
-def integrations(target, codex_home):
+def _command(target, adapter=None):
     # Launch Python directly without changing Windows PowerShell script policy.
     python = str(Path(sys.executable).resolve()).replace("'", "''")
     script = str(target / "engine" / "beyin.py").replace("'", "''")
-    command = f'''powershell.exe -NoProfile -NonInteractive -Command "& '{python}' -X utf8 '{script}' hook"'''
-    hook_path = codex_home / "hooks.json"
-    hooks = beyin.read_json(hook_path, {"hooks": {}})
-    events = hooks.setdefault("hooks", {})
-    for event in EVENTS:
-        groups = events.setdefault(event, [])
-        # Idempotent replacement of only this install's exact command.
-        for group in groups:
-            group["hooks"] = [h for h in group.get("hooks", []) if h.get("command") != command]
-        groups[:] = [g for g in groups if g.get("hooks")]
-        handler = {"type": "command", "command": command, "timeout": 3 if event in ("SessionEnd", "Interrupt") else 15}
-        if event == "SessionStart":
-            handler["additionalContextLimit"] = 7000
-            handler["statusMessage"] = "Proje hafızası yükleniyor"
-        groups.append({"hooks": [handler]})
-    # Respect the global override when one exists.
-    override = codex_home / "AGENTS.override.md"
-    agent_path = override if override.exists() and override.stat().st_size else codex_home / "AGENTS.md"
-    old = agent_path.read_text(encoding="utf-8-sig") if agent_path.exists() else ""
-    block = f"""{BEGIN}
+    suffix = "" if adapter in (None, "codex") else f" --adapter {adapter}"
+    return f'''powershell.exe -NoProfile -NonInteractive -Command "& '{python}' -X utf8 '{script}' hook{suffix}"'''
+
+
+def _memory_block(target):
+    return f"""{BEGIN}
 ## Ortak proje hafızası
 
 Merkez: `{target}`. Kayıtlı projeler: `{target / 'projects.json'}`.
@@ -54,6 +46,11 @@ gerekiyorsa yalnız ilgili projenin `notes/` alanını kullan ve geçerli dosya 
 Yeni projeler `projects.json` kayıt listesine eklenerek bağlanır. İlişkisiz kişisel sohbetleri
 kendiliğinden arşivleme. Otomasyon etkin değilse kaydedilmiş gibi davranma.
 {END}"""
+
+
+def _merge_memory(path, target):
+    old = path.read_text(encoding="utf-8-sig") if path.exists() else ""
+    block = _memory_block(target)
     if BEGIN in old:
         before, remaining = old.split(BEGIN, 1)
         if END not in remaining:
@@ -61,25 +58,140 @@ kendiliğinden arşivleme. Otomasyon etkin değilse kaydedilmiş gibi davranma.
         old = before.rstrip() + "\n\n" + block + remaining.split(END, 1)[1]
     else:
         old = old.rstrip() + ("\n\n" if old.strip() else "") + block + "\n"
-    return {hook_path: json.dumps(hooks, ensure_ascii=False, indent=2) + "\n", agent_path: old}
+    return old
 
 
-def plan(target, codex_home, registry):
-    changes = integrations(target, codex_home)
-    return {"schema_version": 1, "target": str(target), "codex_home": str(codex_home),
+def _merge_hooks(path, target, adapter, hook_events):
+    hooks = beyin.read_json(path, {"hooks": {}})
+    if not isinstance(hooks, dict):
+        raise ValueError(f"{path} must contain a JSON object")
+    events = hooks.setdefault("hooks", {})
+    if not isinstance(events, dict):
+        raise ValueError(f"{path} hooks must be a JSON object")
+    command = _command(target, adapter)
+    for event in hook_events:
+        groups = events.setdefault(event, [])
+        if not isinstance(groups, list):
+            raise ValueError(f"{path} hooks.{event} must be an array")
+        # Idempotent replacement of only this install's exact command.
+        for group in groups:
+            if isinstance(group, dict):
+                group["hooks"] = [h for h in group.get("hooks", [])
+                                   if isinstance(h, dict) and h.get("command") != command]
+        groups[:] = [g for g in groups if isinstance(g, dict) and g.get("hooks")]
+        handler = {"type": "command", "command": command,
+                   "timeout": 3 if event in ("SessionEnd", "Interrupt") else 15}
+        if event == "SessionStart":
+            handler["additionalContextLimit"] = 7000
+            handler["statusMessage"] = "Proje hafızası yükleniyor"
+        groups.append({"hooks": [handler]})
+    return json.dumps(hooks, ensure_ascii=False, indent=2) + "\n"
+
+
+def _codex_integrations(target, codex_home):
+    hook_path = codex_home / "hooks.json"
+    override = codex_home / "AGENTS.override.md"
+    agent_path = override if override.exists() and override.stat().st_size else codex_home / "AGENTS.md"
+    return {hook_path: _merge_hooks(hook_path, target, "codex", CODEX_EVENTS),
+            agent_path: _merge_memory(agent_path, target)}
+
+
+def _claude_integrations(target, claude_home):
+    settings_path = claude_home / "settings.json"
+    memory_path = claude_home / "CLAUDE.md"
+    return {settings_path: _merge_hooks(settings_path, target, "claude", CLAUDE_EVENTS),
+            memory_path: _merge_memory(memory_path, target)}
+
+
+def integrations(target, codex_home=None, claude_home=None):
+    """Return reversible external-file updates for selected assistant clients.
+
+    ``codex_home`` remains the first positional argument for compatibility with
+    existing SourceNest installations. Claude Code is opt-in at install time so
+    an older Codex-only upgrade never writes an unexpected global file.
+    """
+    if codex_home is None and claude_home is None:
+        raise ValueError("At least one assistant home is required")
+    changes = {}
+    if codex_home is not None:
+        changes.update(_codex_integrations(target, codex_home))
+    if claude_home is not None:
+        changes.update(_claude_integrations(target, claude_home))
+    return changes
+
+
+def plan(target, codex_home, registry, claude_home=None):
+    changes = integrations(target, codex_home, claude_home)
+    return {"schema_version": 1, "target": str(target),
+            "codex_home": str(codex_home) if codex_home else None,
+            "claude_home": str(claude_home) if claude_home else None,
             "projects": [p["id"] for p in registry["projects"]],
             "writes": [str(target), *map(str, changes)],
             "existing_target": target.exists(),
             "model": "gpt-5.6-luna", "provider": "codex_cli",
-            "hook_events": list(EVENTS), "hook_trust": "Requires user review in Codex /hooks; never modified by installer",
+            "integrations": (["codex"] if codex_home else []) + (["claude"] if claude_home else []),
+            "hook_events": {"codex": list(CODEX_EVENTS) if codex_home else [],
+                            "claude": list(CLAUDE_EVENTS) if claude_home else []},
+            "hook_trust": "Review and enable commands in each assistant's hook settings; installer never changes trust",
             "codex_config_toml": "unchanged", "existing_project_files": "unchanged",
             "credentials": "none copied or written", "remote_upload": "none"}
 
 
-def install(target, codex_home, registry):
+def _apply_external_changes(target, changes, label):
+    """Write external integration files with a vault-local restore manifest."""
+    backup = target / ".backups" / (label + "-" + dt.datetime.now().strftime("%Y%m%d-%H%M%S-%f"))
+    backup.mkdir(parents=True, exist_ok=False)
+    originals = []
+    for index, (path, text) in enumerate(changes.items()):
+        previous = path.read_bytes() if path.exists() else None
+        saved = backup / (str(index) + "-" + path.name)
+        if previous is not None:
+            saved.write_bytes(previous)
+        originals.append({"path": str(path), "existed": previous is not None,
+                          "backup": str(saved) if previous is not None else None,
+                          "before_sha256": beyin.digest(previous) if previous is not None else None,
+                          "after_sha256": beyin.digest(text.encode("utf-8"))})
+    beyin.atomic(backup / "manifest.json", originals)
+    try:
+        for path, text in changes.items():
+            beyin.atomic(path, text)
+    except Exception:
+        for item in originals:
+            path = Path(item["path"])
+            if path.exists() and beyin.digest(path.read_bytes()) == item["after_sha256"]:
+                if item["existed"]:
+                    path.write_bytes(Path(item["backup"]).read_bytes())
+                else:
+                    path.unlink()
+        raise
+    return backup
+
+
+def integrate(target, codex_home=None, claude_home=None):
+    """Connect an existing vault to one or more assistant clients."""
+    target = target.resolve()
+    if not target.is_dir() or not (target / "engine" / "beyin.py").is_file():
+        raise ValueError("Target is not an existing SourceNest vault")
+    changes = integrations(target, codex_home, claude_home)
+    backup = _apply_external_changes(target, changes, "integration")
+    state_path = target / ".state" / "installation.json"
+    state = beyin.read_json(state_path, {})
+    integrations_used = set(state.get("integrations", [])) if isinstance(state.get("integrations", []), list) else set()
+    integrations_used.update([x for x, home in (("codex", codex_home), ("claude", claude_home)) if home])
+    state.update({"schema_version": 1, "target": str(target),
+                  "codex_home": str(codex_home) if codex_home else state.get("codex_home"),
+                  "claude_home": str(claude_home) if claude_home else state.get("claude_home"),
+                  "integrations": sorted(integrations_used),
+                  "integrated_at": beyin.now(), "integration_backup": str(backup)})
+    beyin.atomic(state_path, state)
+    return {"integrated": str(target), "backup": str(backup),
+            "external_files": list(map(str, changes))}
+
+
+def install(target, codex_home, registry, claude_home=None):
     if target.exists():
         raise ValueError("Target already exists. Inspect it and use a reviewed upgrade; refusing to overwrite.")
-    changes = integrations(target, codex_home)
+    changes = integrations(target, codex_home, claude_home)
     target.mkdir(parents=True)
     originals = []
     try:
@@ -115,7 +227,7 @@ def install(target, codex_home, registry):
         beyin.atomic(backup / "manifest.json", originals)
         for path, text in changes.items():
             beyin.atomic(path, text)
-        beyin.atomic(target / ".state" / "installation.json", dict(plan(target, codex_home, registry), installed_at=beyin.now(), backup=str(backup)))
+        beyin.atomic(target / ".state" / "installation.json", dict(plan(target, codex_home, registry, claude_home), installed_at=beyin.now(), backup=str(backup)))
         beyin.checkpoint(target)
         return {"installed": str(target), "backup": str(backup), "external_files": list(map(str, changes))}
     except Exception:
@@ -134,12 +246,27 @@ def install(target, codex_home, registry):
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--target", type=Path, required=True)
-    p.add_argument("--codex-home", type=Path, required=True)
-    p.add_argument("--registry", type=Path, required=True)
+    p.add_argument("--codex-home", type=Path)
+    p.add_argument("--claude-home", type=Path,
+                   help="Claude Code user home, normally %%USERPROFILE%%/.claude")
+    p.add_argument("--registry", type=Path,
+                   help="Project registry used for a new vault (not needed with --integrate)")
     p.add_argument("--apply", action="store_true")
+    p.add_argument("--integrate", action="store_true",
+                   help="Connect an existing vault without replacing its data")
     args = p.parse_args()
-    registry = beyin.read_json(args.registry)
-    result = install(args.target.resolve(), args.codex_home.resolve(), registry) if args.apply else plan(args.target.resolve(), args.codex_home.resolve(), registry)
+    if not args.codex_home and not args.claude_home:
+        p.error("At least one of --codex-home or --claude-home is required")
+    target = args.target.resolve()
+    codex_home = args.codex_home.resolve() if args.codex_home else None
+    claude_home = args.claude_home.resolve() if args.claude_home else None
+    if args.integrate:
+        result = integrate(target, codex_home, claude_home)
+    else:
+        if not args.registry:
+            p.error("--registry is required for a new vault plan/install")
+        registry = beyin.read_json(args.registry)
+        result = install(target, codex_home, registry, claude_home) if args.apply else plan(target, codex_home, registry, claude_home)
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
