@@ -23,7 +23,7 @@ Karpathy'nin kaynak → wiki yaklaşımı ve Avenox'un oturum hafızası fikrind
 
 ## Gerekenler
 
-Windows, Python 3.11+ ve Git gerekir. Codex özetleyicisini kullanacaksan `codex login status` çalışır durumda olmalıdır. Otomatik Codex ve Claude Code bağlantıları Windows için hazırlanır; varsayılan `gpt-5.6-luna` modelinin hesabında kullanılabilir olması gerekir. Model değiştirilebilir. Özetler şu an Türkçe üretilir.
+Windows, Python 3.11+ ve Git gerekir. Codex özetleyicisini kullanacaksan `codex login status` çalışır durumda olmalıdır. Otomatik Codex ve Claude Code bağlantıları Windows için hazırlanır; varsayılan `gpt-5.6-luna` modelinin hesabında kullanılabilir olması gerekir. Hafıza özetlerinde kaynaklı karar ve düzeltmeleri daha güvenilir işlemek için varsayılan efor `high` olarak ayarlanmıştır; daha yavaş ve derin bir işlem istersen `summarizer.reasoning_effort` değerini `max` yapabilirsin. Model değiştirilebilir. Özetler şu an Türkçe üretilir.
 
 ## Kurulum
 
