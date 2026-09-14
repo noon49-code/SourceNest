@@ -1,6 +1,6 @@
 # Validation scope
 
-Engine 1.1.1 includes the fix for Codex AgentMessage content blocks with type Text and provider-neutral transcript adapters. The regression fixture preserves the observed event shape with synthetic message text.
+Engine 1.1.2 includes the fix for Codex AgentMessage content blocks with type Text and provider-neutral transcript adapters. The regression fixture preserves the observed event shape with synthetic message text.
 
 The local suite covers replay, incremental append, incomplete tails, long-message splitting, both conversation roles, Claude/Cursor/normalized transcript envelopes, prompt-hook fallback, tool/reasoning exclusion, evidence validation, proposal/decision distinction, project isolation, worker locks, failure queues, budget/auth pause, immutable source checks, deterministic wiki links and Codex/Claude integration merging.
 

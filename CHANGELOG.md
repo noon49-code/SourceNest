@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.2 — resilient Windows launcher
+
+- Keep the bundled Codex runtime fallback in `Beyin.cmd` before trying `python.exe` on PATH.
+
 ## 1.1.1 — safe existing-vault upgrade
 
 - Add `--upgrade` to update managed engine files while preserving project data and user configuration.
