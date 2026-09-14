@@ -1,5 +1,22 @@
 # SourceNest · Türkçe rehber
 
+## Proje hafızası, projenin yanında kalsın
+
+SourceNest, Codex oturumlarında işe yarayan kararları, tercihleri, düzeltmeleri ve açık işleri ilgili projenin yanında tutar. Görünen kullanıcı/asistan metni yerel JSON kayıtlarına yazılır; kalıcı bilgiler kaynak alıntılarıyla Markdown wiki sayfalarına derlenir.
+
+Modeli değiştirsen bile kayıt biçimi değişmez. Birden fazla projede çalışıyorsan her projenin hafızası ayrı klasörde kalır.
+
+![SourceNest veri akışı: oturumdan kaynak kaydına ve proje wiki'sine](docs/architecture.svg)
+
+~~~mermaid
+flowchart LR
+    A[Codex oturumu] -->|kullanıcı ve asistan metni| B[Yaşam döngüsü kancaları]
+    B --> C[Değişmez JSON kaynak kaydı]
+    C --> D[Seçilen özetleyici]
+    D --> E[Yerel doğrulama]
+    E --> F[Proje kayıtları ve Markdown wiki]
+~~~
+
 Karpathy'nin kaynak → wiki yaklaşımı ve Avenox'un oturum hafızası fikrinden esinlenen bağımsız proje hafızası. Kayıtlı her proje ayrı tutulur. Kaynaklar JSON, derlenmiş bilgiler Markdown olarak saklanır.
 
 ## Gerekenler

@@ -1,6 +1,38 @@
 # SourceNest
 
-Source-backed project memory for Codex on Windows. Conversations become local JSON records and Markdown topic pages, with evidence links and separate memory for each registered project.
+## Keep the project memory with the project
+
+SourceNest keeps the useful parts of a Codex session beside the code they belong to. It records visible conversation text locally, keeps the original evidence, and turns durable decisions, preferences, corrections, and open work into linked Markdown pages.
+
+If you change models later, the notes stay in the same JSON and Markdown files. If you work on several projects, each one gets its own memory area. You can inspect the files without running a model.
+
+![SourceNest data flow: Codex session to source record, validated memory, and project wiki](docs/architecture.svg)
+
+| When you need to… | SourceNest keeps… |
+| --- | --- |
+| pick up a project after a break | the project status, index, and durable context |
+| remember why a choice was made | a dated record with a source message and quote |
+| move from Luna to another model | the same portable records and Markdown views |
+| work across several repositories | separate memory selected by the project path |
+
+The writing is deliberately plain. A generated item must point back to a message that exists in the local source record, so you can check the context instead of trusting a polished paragraph.
+
+### The path from a conversation to a page
+
+~~~mermaid
+flowchart LR
+    A[Codex session] -->|visible user and assistant text| B[Lifecycle hooks]
+    B --> C[Immutable JSON event]
+    C --> D[Configured summarizer]
+    D -->|structured JSON| E[Local validation]
+    E --> F[Project records]
+    F --> G[Markdown topic wiki]
+    F --> H[Daily log and decisions]
+~~~
+
+The model proposes structured data. Local code checks the source IDs, evidence quotes, and schema before anything reaches the generated wiki.
+
+A local, source-backed project memory for Codex on Windows.
 
 [Türkçe kurulum ve kullanım](README.tr.md) · [Privacy](PRIVACY.md) · [Credits](CREDITS.md) · [MIT license](LICENSE)
 
