@@ -265,6 +265,32 @@ class MemoryTests(unittest.TestCase):
             self.assertTrue(held)
             self.assertEqual(beyin.process(self.root)["status"], "busy")
 
+    def test_invalid_evidence_does_not_block_other_jobs(self):
+        first = self.event()
+        self.write_turns([("user", "Yeni karar: belgeler Türkçe olsun.")], append=True)
+        beyin.capture(self.root, self.project, self.payload, "codex")
+        def runner(root, event, topics):
+            result = self.summary(event)
+            if event["id"] == first["id"]:
+                result["items"][0]["evidence_quote"] = "fabricated evidence"
+            return result, {}
+        result = beyin.process(self.root, runner=runner)
+        self.assertEqual(result["processed"], 1)
+        self.assertEqual(result["failures"], 1)
+        self.assertEqual(result["pending"], 1)
+        self.assertFalse((self.root / ".state/PAUSED").exists())
+        self.assertFalse((self.root / "projects/alpha/records" / (first["id"] + ".json")).exists())
+        for _ in range(2):
+            beyin.process(self.root, force=True, runner=runner)
+        job = beyin.read_json(next((self.root / ".queue").glob("*.json")))
+        self.assertTrue(job["needs_review"])
+        with patch.object(beyin, "run_model") as model:
+            beyin.process(self.root)
+            model.assert_not_called()
+        recovered = beyin.process(self.root, force=True,
+                                  runner=lambda root, event, topics: (self.summary(event), {}))
+        self.assertEqual(recovered["processed"], 1)
+
     def test_budget_and_auth_pause(self):
         self.event()
         runner = lambda *a: (_ for _ in ()).throw(ValueError("Codex CLI oturum açılması gerekiyor (codex login)"))

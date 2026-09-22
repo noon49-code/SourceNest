@@ -47,7 +47,7 @@ The extraction model proposes structured memory data. Local code checks the sour
 
 ## Status
 
-Early release, engine 1.4.0. Windows + Codex CLI is the live-tested automatic integration; Claude Code wiring and provider-neutral adapters are included. Python 3.11+ and Git are required. No third-party Python dependencies.
+Early release, engine 1.4.1. Windows + Codex CLI is the live-tested automatic integration; Claude Code wiring and provider-neutral adapters are included. Python 3.11+ and Git are required. No third-party Python dependencies.
 
 The engine was live-tested with Codex CLI 0.154.0-alpha.6.2 and `gpt-5.6-luna`. Luna is the low-effort summary model; the default `gpt-5.6-sol` extractor uses high reasoning effort for source-backed decisions and corrections. Change `summarizer.model` or `extractor.model` in the installed vault's `config.json` when needed; `max` is available for either role when you prefer slower, deeper passes. The selected models must be available to your own account. CLI flags and hook formats can change between releases. Markdown summaries and engine messages currently use Turkish.
 
@@ -144,6 +144,8 @@ python "$BeyinVault\engine\beyin.py" resume
 `pause` disables automatic capture; it does not terminate an already running worker. `resume` re-enables capture; use `process --retry` to explicitly retry processing after fixing errors. `doctor` checks login, queue and worker health; it is not a live model test. PDF input must first be converted to text. URLs are source metadata, not automatic downloads.
 
 ## Where your memory lives
+
+Rejected evidence stays queued and does not block other jobs. After three failed attempts, the job waits for review (`doctor.needs_review`); use `process --retry` to retry it. A login check inside a different Windows sandbox account may not see your saved credentials. Confirm `codex login status` in your normal Windows session before signing in again.
 
 ```text
 Beyin/                         # private vault, outside the source repository

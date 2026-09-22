@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.1 — keep processing after invalid evidence
+
+- Keep rejected source/evidence jobs in the queue while processing independent jobs.
+- After three failures, hold the affected job for review; `process --retry` retries it explicitly.
+- Expose the held-job count as `doctor.needs_review`. Source and quote validation remain strict.
+
 ## 1.4.0 — local search and processing profiles
 
 - Add bounded, project-scoped Markdown search with optional human-maintained topic aliases.

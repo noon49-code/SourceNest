@@ -22,7 +22,7 @@ import time
 import urllib.request
 import uuid
 
-VERSION = "1.4.0"
+VERSION = "1.4.1"
 ROOT = Path(__file__).resolve().parents[1]
 KINDS = ["decision", "preference", "reported_fact", "proposal", "open_task", "completed_task", "correction", "question"]
 LABELS = dict(zip(KINDS, ["Karar", "Tercih", "Bildirilen bilgi", "Öneri", "Açık iş", "Tamamlandığı bildirilen iş", "Düzeltme", "Soru"]))
@@ -895,10 +895,11 @@ def process(root, force=False, runner=None):
                     or budget["calls"] + call_cost > cfg.get("max_calls_per_day", 20)):
                 break
             job = read_json(queue)
-            if not force and job.get("not_before", 0) > time.time():
+            if not force and (job.get("needs_review") or job.get("not_before", 0) > time.time()):
                 continue
             base = safe_project(root, job["project_id"])
             record_path = base / "records" / (job["event_id"] + ".json")
+            phase = "source"
             try:
                 if record_path.exists():
                     affected.add(job["project_id"])
@@ -913,8 +914,11 @@ def process(root, force=False, runner=None):
                 budget["calls"] += call_cost
                 run_calls += call_cost
                 atomic(budget_path, budget)
+                phase = "model"
                 result, usage = (runner or run_model)(root, event, topics)
+                phase = "validation"
                 valid = validate_summary(result, event)
+                phase = "storage"
                 summary_settings = cfg["summarizer"]
                 extraction_settings = cfg.get("extractor") if split_models(cfg) else summary_settings
                 record = dict(valid, schema_version=1, event_id=event["id"], project_id=job["project_id"],
@@ -937,8 +941,15 @@ def process(root, force=False, runner=None):
                 # Store safe diagnostics only. Raw SDK errors can contain credentials/data.
                 detail = str(exc) if isinstance(exc, ValueError) else type(exc).__name__
                 job["last_error"] = redact(detail)[:300]
+                local_failure = phase in ("source", "validation") and isinstance(exc, ValueError)
+                if local_failure:
+                    job["needs_review"] = job["attempts"] >= 3
                 atomic(queue, job)
                 note_health(root, "worker", "error", job["last_error"])
+                if local_failure:
+                    # Invalid evidence stays queued, never enters the wiki and must
+                    # not prevent independent records from being processed.
+                    continue
                 if "oturum aç" in detail or job["attempts"] >= 3:
                     atomic(root / ".state" / "PAUSED", "İşleme duraklatıldı. Bağlantıyı düzeltip process --retry çalıştır.\n")
                 break
@@ -988,6 +999,7 @@ def doctor(root):
               "split_models": split_models(cfg),
               "profile": active_profile(cfg),
               "enabled": cfg.get("enabled", True), "pending": len(list((root / ".queue").glob("*.json"))),
+              "needs_review": sum(bool(read_json(p).get("needs_review")) for p in (root / ".queue").glob("*.json")),
               "paused_after_error": (root / ".state" / "PAUSED").exists(),
               "projects": [p["id"] for p in read_json(root / "projects.json")["projects"]],
               "health": {p.stem: read_json(p) for p in (root / ".state").glob("*-health.json")}}

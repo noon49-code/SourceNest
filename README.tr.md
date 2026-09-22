@@ -6,7 +6,7 @@ SourceNest, Codex, Claude Code, Cursor ve benzeri yapay zekâ kodlama araçları
 
 Tek bir özel kasa, kod depolarının dışında durur; her projenin hafızası bu kasanın ayrı bir klasöründedir. Çekirdek kayıt biçimi model sağlayıcısına bağlı değildir. Codex ve Claude Code için yaşam döngüsü kancaları, dışa aktarma veya akış sunan diğer araçlar için standart JSONL köprüsü vardır.
 
-**Mevcut kapsam:** erken sürüm, motor 1.4.0; Windows + Codex CLI ile canlı yakalama test edildi. Claude Code kanca dosyaları ve Cursor/standart JSONL adaptörleri sentetik testlerle doğrulandı. Özetler Türkçe üretilir. Seçilen özet modeli yalnızca tarafsız oturum özetini üretir; ayrı ve daha güçlü çıkarım modeli karar, tercih, düzeltme ve görev maddelerini kaynaklarıyla oluşturur. Yakalama, bağlam yükleme, yerel arama, kaynak saklama, kanıt doğrulama ve Markdown üretimi yerelde yapılır. Dosyaların yerelde olması model çağrılarının çevrimdışı olduğu anlamına gelmez.
+**Mevcut kapsam:** erken sürüm, motor 1.4.1; Windows + Codex CLI ile canlı yakalama test edildi. Claude Code kanca dosyaları ve Cursor/standart JSONL adaptörleri sentetik testlerle doğrulandı. Özetler Türkçe üretilir. Seçilen özet modeli yalnızca tarafsız oturum özetini üretir; ayrı ve daha güçlü çıkarım modeli karar, tercih, düzeltme ve görev maddelerini kaynaklarıyla oluşturur. Yakalama, bağlam yükleme, yerel arama, kaynak saklama, kanıt doğrulama ve Markdown üretimi yerelde yapılır. Dosyaların yerelde olması model çağrılarının çevrimdışı olduğu anlamına gelmez.
 
 ![SourceNest veri akışı: oturumdan kaynak kaydına ve proje wiki'sine](docs/architecture.svg)
 
