@@ -265,6 +265,30 @@ class MemoryTests(unittest.TestCase):
             self.assertTrue(held)
             self.assertEqual(beyin.process(self.root)["status"], "busy")
 
+    def test_temporary_budget_expires_without_changing_normal_limits(self):
+        cfg = beyin.config(self.root)
+        cfg.update(max_calls_per_day=60, max_calls_per_run=8,
+                   temporary_budget={"until":"2026-09-25T14:00:00+00:00", "max_calls_per_day":200})
+        before = beyin.dt.datetime.fromisoformat("2026-09-25T13:59:59+00:00")
+        expiry = beyin.dt.datetime.fromisoformat("2026-09-25T14:00:00+00:00")
+        self.assertEqual(beyin.processing_limits(cfg, before)["max_calls_per_day"], 200)
+        self.assertEqual(beyin.processing_limits(cfg, expiry)["max_calls_per_day"], 60)
+        self.assertEqual(cfg["max_calls_per_day"], 60)
+        self.assertEqual(beyin.processing_limits(cfg, before)["max_calls_per_run"], 8)
+
+    def test_worker_uses_temporary_budget_but_preserves_spent_calls(self):
+        self.event()
+        cfg = beyin.config(self.root)
+        cfg.update(max_calls_per_day=1, temporary_budget={
+            "until":(beyin.dt.datetime.now(beyin.dt.timezone.utc)+beyin.dt.timedelta(days=1)).isoformat(),
+            "max_calls_per_day":2})
+        beyin.atomic(self.root / "config.json", cfg)
+        beyin.atomic(self.root / ".state/budget.json", {
+            "date":beyin.dt.datetime.now(beyin.dt.timezone.utc).date().isoformat(), "calls":1})
+        result = beyin.process(self.root, runner=lambda root,event,topics:(self.summary(event),{}))
+        self.assertEqual(result["processed"], 1)
+        self.assertEqual(beyin.read_json(self.root / ".state/budget.json")["calls"], 2)
+
     def test_invalid_evidence_does_not_block_other_jobs(self):
         first = self.event()
         self.write_turns([("user", "Yeni karar: belgeler Türkçe olsun.")], append=True)

@@ -186,6 +186,25 @@ def active_profile(cfg):
     return "custom"
 
 
+def processing_limits(cfg, at=None):
+    """Apply an optional expiring budget without overwriting the normal limits."""
+    limits = {"max_calls_per_run": cfg.get("max_calls_per_run", 4),
+              "max_calls_per_day": cfg.get("max_calls_per_day", 20)}
+    boost = cfg.get("temporary_budget")
+    if boost:
+        until = dt.datetime.fromisoformat(boost["until"])
+        if until.tzinfo is None:
+            raise ValueError("temporary_budget.until must include a timezone")
+        if (at or dt.datetime.now(dt.timezone.utc)) < until:
+            for key in limits:
+                if key in boost:
+                    value = boost[key]
+                    if type(value) is not int or value < 1:
+                        raise ValueError("Temporary call limits must be positive integers")
+                    limits[key] = value
+    return limits
+
+
 def preferences(root, profile=None):
     """Read or apply a conservative processing profile without changing model roles."""
     cfg = config(root)
@@ -197,6 +216,8 @@ def preferences(root, profile=None):
         atomic(root / "config.json", cfg)
     current = active_profile(cfg)
     return {"profile": current, "auto_process": cfg.get("auto_process", True),
+            "effective_limits": processing_limits(cfg),
+            "temporary_budget": cfg.get("temporary_budget"),
             "max_calls_per_run": cfg.get("max_calls_per_run", 4),
             "max_calls_per_day": cfg.get("max_calls_per_day", 20)}
 
@@ -891,8 +912,9 @@ def process(root, force=False, runner=None):
             budget = {"date": date, "calls": 0}
         for queue in sorted((root / ".queue").glob("*.json"), key=lambda p: p.stat().st_mtime):
             call_cost = 1 if runner else configured_model_calls(cfg)
-            if (run_calls + call_cost > cfg.get("max_calls_per_run", 4)
-                    or budget["calls"] + call_cost > cfg.get("max_calls_per_day", 20)):
+            limits = processing_limits(cfg)
+            if (run_calls + call_cost > limits["max_calls_per_run"]
+                    or budget["calls"] + call_cost > limits["max_calls_per_day"]):
                 break
             job = read_json(queue)
             if not force and (job.get("needs_review") or job.get("not_before", 0) > time.time()):
@@ -998,6 +1020,8 @@ def doctor(root):
               "extraction_provider": extraction_settings["provider"], "extraction_model": extraction_settings["model"],
               "split_models": split_models(cfg),
               "profile": active_profile(cfg),
+              "effective_limits": processing_limits(cfg),
+              "temporary_budget": cfg.get("temporary_budget"),
               "enabled": cfg.get("enabled", True), "pending": len(list((root / ".queue").glob("*.json"))),
               "needs_review": sum(bool(read_json(p).get("needs_review")) for p in (root / ".queue").glob("*.json")),
               "paused_after_error": (root / ".state" / "PAUSED").exists(),

@@ -169,6 +169,13 @@ The private vault contains `projects/<id>/raw`, `records`, `wiki`, `daily`, `STA
 
 ## Changing models and managing usage
 
+For a temporary backlog, an optional `temporary_budget` object in the private
+`config.json` can override `max_calls_per_day` and/or `max_calls_per_run` until
+its `until` timestamp (ISO 8601 with timezone). After expiry, the engine uses the
+normal top-level limits automatically, without resetting spent calls. This changes
+the processing allowance; it does not schedule workers. `preferences` and `doctor`
+report the effective limits. Remove `temporary_budget` to cancel the override early.
+
 When queued work is processed, the two configured roles use your Codex account, with at most 4 model calls per run and 20 per UTC day across the vault. With the split defaults, one queued event uses two calls: one Luna synopsis and one stronger extraction pass. These are call limits, not monetary limits. The `normal` profile keeps those defaults; `economical` lowers them to 2 per run and 8 per day; `manual` keeps capture available but waits for an explicit `process --retry`. Errors retain queued work; processing resumes on later hooks or an explicit retry, not a timer. Memory context, summary and extraction consume tokens.
 
 Change `summarizer` to choose the neutral synopsis model and `extractor` to choose the stronger model that classifies important memory items. Both settings use the same provider choices: `codex_cli` is live-tested; `openai_responses` and an explicit local `command` adapter exist but are not live-verified across providers. API use requires its own environment credential and billing. The command adapter receives the role-specific prompt on stdin and must return the matching SourceNest JSON schema on stdout; `{model}` arguments are substituted without shell evaluation. If `extractor` is omitted, the engine falls back to the legacy single-model combined schema for compatibility.

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Support an optional `temporary_budget` with a timezone-aware `until` timestamp.
+  Workers check expiry before every job and fall back to normal call limits.
+  The spent-call counter is preserved. Preferences and doctor show effective limits.
+
 ## 1.4.1 — keep processing after invalid evidence
 
 - Keep rejected source/evidence jobs in the queue while processing independent jobs.
