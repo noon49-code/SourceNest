@@ -2,6 +2,7 @@
   "schema_version": 1,
   "enabled": true,
   "auto_process": true,
+  "profile": "normal",
   "max_calls_per_run": 4,
   "max_calls_per_day": 20,
   "git_checkpoints": true,

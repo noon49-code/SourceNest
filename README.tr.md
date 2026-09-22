@@ -6,7 +6,7 @@ SourceNest, Codex, Claude Code, Cursor ve benzeri yapay zekâ kodlama araçları
 
 Tek bir özel kasa, kod depolarının dışında durur; her projenin hafızası bu kasanın ayrı bir klasöründedir. Çekirdek kayıt biçimi model sağlayıcısına bağlı değildir. Codex ve Claude Code için yaşam döngüsü kancaları, dışa aktarma veya akış sunan diğer araçlar için standart JSONL köprüsü vardır.
 
-**Mevcut kapsam:** erken sürüm; Windows + Codex CLI ile canlı yakalama test edildi. Claude Code kanca dosyaları ve Cursor/standart JSONL adaptörleri sentetik testlerle doğrulandı. Özetler Türkçe üretilir. Seçilen özet modeli yalnızca tarafsız oturum özetini üretir; ayrı ve daha güçlü çıkarım modeli karar, tercih, düzeltme ve görev maddelerini kaynaklarıyla oluşturur. Yakalama, bağlam yükleme, kaynak saklama, kanıt doğrulama ve Markdown üretimi yerelde yapılır. Dosyaların yerelde olması model çağrılarının çevrimdışı olduğu anlamına gelmez.
+**Mevcut kapsam:** erken sürüm, motor 1.4.0; Windows + Codex CLI ile canlı yakalama test edildi. Claude Code kanca dosyaları ve Cursor/standart JSONL adaptörleri sentetik testlerle doğrulandı. Özetler Türkçe üretilir. Seçilen özet modeli yalnızca tarafsız oturum özetini üretir; ayrı ve daha güçlü çıkarım modeli karar, tercih, düzeltme ve görev maddelerini kaynaklarıyla oluşturur. Yakalama, bağlam yükleme, yerel arama, kaynak saklama, kanıt doğrulama ve Markdown üretimi yerelde yapılır. Dosyaların yerelde olması model çağrılarının çevrimdışı olduğu anlamına gelmez.
 
 ![SourceNest veri akışı: oturumdan kaynak kaydına ve proje wiki'sine](docs/architecture.svg)
 
@@ -100,9 +100,12 @@ Kasanın `config.json` dosyasında `summarizer` tarafsız kısa özet modelini, 
 python "$BeyinVault\engine\beyin.py" process --retry
 python "$BeyinVault\engine\beyin.py" pause
 python "$BeyinVault\engine\beyin.py" resume
+python "$BeyinVault\engine\beyin.py" preferences
+python "$BeyinVault\engine\beyin.py" preferences --profile economical
+python "$BeyinVault\engine\beyin.py" preferences --profile manual
 ```
 
-`pause` yeni otomatik yakalamayı kapatır; çalışan işleyiciyi zorla durdurmaz. Başka uygulamaya geçişte o uygulamanın otomatik kayıt bağlantısı ayrıca gerekir. OpenAI API ve özel komut bağlantısı mevcut olsa da sağlayıcılar arası canlı geçiş doğrulanmadı.
+`normal` varsayılan olarak bir çalışmada 4, UTC gününde 20 model çağrısına izin verir. `economical` bu sınırları 2 ve 8'e indirir. `manual` yakalamayı açık tutar ama işleme için `process --retry` bekler. `pause` yeni otomatik yakalamayı kapatır; çalışan işleyiciyi zorla durdurmaz. Başka uygulamaya geçişte o uygulamanın otomatik kayıt bağlantısı ayrıca gerekir. OpenAI API ve özel komut bağlantısı mevcut olsa da sağlayıcılar arası canlı geçiş doğrulanmadı.
 
 Codex ve Claude Code yaşam kancalarını kullanır. Cursor veya dışa aktarma sunan başka bir araç için:
 
@@ -111,6 +114,16 @@ python "$BeyinVault\engine\beyin.py" capture-file --project yeni-proje --file 'D
 ```
 
 `cursor` adaptörü `type` + `message.role` + `message.content` biçimini, `normalized` adaptörü ise `role` + `content` biçimini okur. Yakalama, özet ve çıkarım rolleri birbirinden ayrıdır; model değiştirince kasa formatı değişmez.
+
+Hafızayı model çağrısı yapmadan ara:
+
+```powershell
+python "$BeyinVault\engine\beyin.py" search --project yeni-proje --query 'veritabanı'
+python "$BeyinVault\engine\beyin.py" alias --project yeni-proje --topic 'Database' 'db' 'veritabanı'
+python "$BeyinVault\engine\beyin.py" context --cwd 'D:\Projeler\YeniProje' --query 'model tercihi'
+```
+
+Arama yalnız seçili projenin üretilmiş Markdown sayfalarında çalışır. `alias` komutu proje klasöründeki özel `aliases.json` dosyasına insan tarafından verilen diğer adları kaydeder; sonuçlar yeni oturum bağlamına sınırlı olarak eklenebilir.
 
 Kişisel kasanı ve Git geçmişini herkese açık paylaşma. Düzenli ayrı yedek al. Özetler hatalı olabilir; kaynak ve tarihleri kontrol et. Ayrıntılar: [gizlilik](PRIVACY.md), [komutlar ve kaldırma](README.md), [esin kaynakları](CREDITS.md).
 

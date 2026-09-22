@@ -226,6 +226,30 @@ class MemoryTests(unittest.TestCase):
             for target in re.findall(r"\]\(([^)]+)\)", p.read_text(encoding="utf-8")):
                 self.assertTrue((p.parent / target).exists(), (p, target))
 
+    def test_local_search_supports_topic_aliases_and_context_query(self):
+        event = self.event()
+        with patch.object(beyin, "run_model", return_value=(self.summary(event), {})):
+            self.assertEqual(beyin.process(self.root)["processed"], 1)
+        beyin.add_aliases(self.root, "alpha", "Özetleyici seçimi", ["model tercihi", "özet modeli"])
+        result = beyin.search(self.root, "alpha", "model tercihi")
+        self.assertEqual(result["results"][0]["topic"], "Özetleyici seçimi")
+        self.assertIn("model tercihi", result["results"][0]["aliases"])
+        context = beyin.context_for(self.root, self.project, "model tercihi", 3)
+        self.assertIn("Yerel hafıza araması: model tercihi", context)
+        self.assertIn("Özetleyici seçimi", context)
+
+    def test_preferences_profiles_change_only_processing_controls(self):
+        original_summary = beyin.config(self.root)["summarizer"]
+        result = beyin.preferences(self.root, "economical")
+        self.assertEqual(result["profile"], "economical")
+        self.assertTrue(result["auto_process"])
+        self.assertEqual(result["max_calls_per_run"], 2)
+        self.assertEqual(result["max_calls_per_day"], 8)
+        self.assertEqual(beyin.config(self.root)["summarizer"], original_summary)
+        result = beyin.preferences(self.root, "manual")
+        self.assertEqual(result["profile"], "manual")
+        self.assertFalse(result["auto_process"])
+
     def test_source_mutation_rejected(self):
         self.event()
         source = next((self.root / "projects/alpha/raw/events").glob("*.json"))

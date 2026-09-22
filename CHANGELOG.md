@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.4.0 — local search and processing profiles
+
+- Add bounded, project-scoped Markdown search with optional human-maintained topic aliases.
+- Allow `context --query` to include local search results without a model call.
+- Add Normal, Economical and Manual processing profiles while preserving the summary/extraction model roles.
+- Report the active profile from `doctor` and keep the new controls in the portable vault config.
+
 ## 1.3.0 — separate summary and memory extraction models
 
 - Use the configured Luna model only for a neutral session synopsis.

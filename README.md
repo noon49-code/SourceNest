@@ -47,7 +47,7 @@ The extraction model proposes structured memory data. Local code checks the sour
 
 ## Status
 
-Early release, engine 1.3.0. Windows + Codex CLI is the live-tested automatic integration; Claude Code wiring and provider-neutral adapters are included. Python 3.11+ and Git are required. No third-party Python dependencies.
+Early release, engine 1.4.0. Windows + Codex CLI is the live-tested automatic integration; Claude Code wiring and provider-neutral adapters are included. Python 3.11+ and Git are required. No third-party Python dependencies.
 
 The engine was live-tested with Codex CLI 0.154.0-alpha.6.2 and `gpt-5.6-luna`. Luna is the low-effort summary model; the default `gpt-5.6-sol` extractor uses high reasoning effort for source-backed decisions and corrections. Change `summarizer.model` or `extractor.model` in the installed vault's `config.json` when needed; `max` is available for either role when you prefer slower, deeper passes. The selected models must be available to your own account. CLI flags and hook formats can change between releases. Markdown summaries and engine messages currently use Turkish.
 
@@ -127,9 +127,15 @@ Project IDs use lowercase ASCII letters, digits and hyphens. Paths determine the
 
 ```powershell
 python "$BeyinVault\engine\beyin.py" context --cwd 'D:\Projects\MyProject'
+python "$BeyinVault\engine\beyin.py" context --cwd 'D:\Projects\MyProject' --query 'model tercihleri'
+python "$BeyinVault\engine\beyin.py" search --project my-project --query 'database'
+python "$BeyinVault\engine\beyin.py" alias --project my-project --topic 'Database' 'db' 'veritabanı'
 python "$BeyinVault\engine\beyin.py" ingest --project my-project --file 'D:\Documents\Research.md' --title 'Research'
 python "$BeyinVault\engine\beyin.py" capture-file --project my-project --file 'D:\Exports\session.jsonl' --adapter normalized --session exported-session
 python "$BeyinVault\engine\beyin.py" process --retry
+python "$BeyinVault\engine\beyin.py" preferences
+python "$BeyinVault\engine\beyin.py" preferences --profile economical
+python "$BeyinVault\engine\beyin.py" preferences --profile manual
 python "$BeyinVault\engine\beyin.py" rebuild --project my-project
 python "$BeyinVault\engine\beyin.py" pause
 python "$BeyinVault\engine\beyin.py" resume
@@ -149,6 +155,7 @@ Beyin/                         # private vault, outside the source repository
     │   ├── raw/               # captured events and imported sources
     │   ├── records/           # validated structured summaries
     │   ├── wiki/              # generated index and topic pages
+    │   ├── aliases.json       # optional local topic aliases for search
     │   ├── daily/             # generated daily logs
     │   ├── STATUS.md
     │   ├── DECISIONS.md
@@ -160,7 +167,7 @@ The private vault contains `projects/<id>/raw`, `records`, `wiki`, `daily`, `STA
 
 ## Changing models and managing usage
 
-When queued work is processed, the two configured roles use your Codex account, with at most 4 model calls per run and 20 per UTC day across the vault. With the split defaults, one queued event uses two calls: one Luna synopsis and one stronger extraction pass. These are call limits, not monetary limits. With `auto_process=true`, a worker starts after a capture hook only when queued work exists; set it to `false` and run `process --retry` when you want manual control. Errors retain queued work; processing resumes on later hooks or an explicit retry, not a timer. Memory context, summary and extraction consume tokens.
+When queued work is processed, the two configured roles use your Codex account, with at most 4 model calls per run and 20 per UTC day across the vault. With the split defaults, one queued event uses two calls: one Luna synopsis and one stronger extraction pass. These are call limits, not monetary limits. The `normal` profile keeps those defaults; `economical` lowers them to 2 per run and 8 per day; `manual` keeps capture available but waits for an explicit `process --retry`. Errors retain queued work; processing resumes on later hooks or an explicit retry, not a timer. Memory context, summary and extraction consume tokens.
 
 Change `summarizer` to choose the neutral synopsis model and `extractor` to choose the stronger model that classifies important memory items. Both settings use the same provider choices: `codex_cli` is live-tested; `openai_responses` and an explicit local `command` adapter exist but are not live-verified across providers. API use requires its own environment credential and billing. The command adapter receives the role-specific prompt on stdin and must return the matching SourceNest JSON schema on stdout; `{model}` arguments are substituted without shell evaluation. If `extractor` is omitted, the engine falls back to the legacy single-model combined schema for compatibility.
 
@@ -182,7 +189,14 @@ The stored JSON and Markdown files remain available when you change the summary 
 
 ### How do I search the memory?
 
-Open the project's wiki folder in an editor and use its text search. SourceNest stores ordinary Markdown and JSON files; it does not include a semantic search engine or a chat interface for the vault.
+Use the local Markdown search command. It searches the selected project's generated topic pages, status and decision views without sending the query to a model. Add human-maintained aliases when a team uses more than one name for a topic:
+
+```powershell
+python "$BeyinVault\engine\beyin.py" search --project my-project --query 'db'
+python "$BeyinVault\engine\beyin.py" alias --project my-project --topic 'Database' 'db' 'veritabanı'
+```
+
+`context --query` adds the same bounded results to a new session's context. SourceNest stores ordinary Markdown and JSON files; it does not require a hosted search service or embedding database.
 
 ### Is SourceNest local and free to use?
 
