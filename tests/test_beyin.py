@@ -255,7 +255,7 @@ class MemoryTests(unittest.TestCase):
         event = self.event()
         with patch.object(beyin, "run_model", return_value=(self.summary(event), {})):
             self.assertEqual(beyin.process(self.root)["processed"], 1)
-        beyin.add_aliases(self.root, "alpha", "Özetleyici seçimi", ["model tercihi", "özet modeli"])
+        beyin.add_aliases(self.root / ".." / self.root.name, "alpha", "Özetleyici seçimi", ["model tercihi", "özet modeli"])
         result = beyin.search(self.root, "alpha", "model tercihi")
         self.assertEqual(result["results"][0]["topic"], "Özetleyici seçimi")
         self.assertIn("model tercihi", result["results"][0]["aliases"])
