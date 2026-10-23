@@ -8,7 +8,7 @@ Source reviewed: https://avenox.lol/beyin.md and the official Avenox v3.12.0 pac
 | SHA-256 and safe ZIP handling | Bounded in-memory archive validation, manifest hashes, traversal/duplicate/symlink rejection | Attack fixtures and actual built release package |
 | Complete managed update rollback | Transaction stores all changed managed modules, launcher, shortcut and version metadata | Update/noop/rollback/content and counter preservation fixtures |
 | Interrupted update recovery | `recover`, pre-write journal, checksum and later-edit conflicts | Simulated power-loss and backup corruption tests |
-| Cross-platform setup and shortcuts | `setup.py`, native state roots, Windows/macOS/Linux shortcuts | Windows local execution; CI matrix prepared for all three platforms |
+| Cross-platform setup and shortcuts | `setup.py`, native state roots, Windows/macOS/Linux shortcuts | Windows local execution; CI passed on all three platforms with Python 3.11 and 3.13 |
 | External local runtime state | Explicit pointer and verified migration, original files retained | Counter/cursor preservation and path rejection tests |
 | Seven assistant integrations | Codex, Claude, Kiro, Antigravity, OpenCode 1.x/2.x, OMP, Hermes | Generated configuration, JavaScript syntax, callback/subprocess fixtures; native application verification remains separate |
 | Companion identity/onboarding | `companion status/setup`, three questions, existing Core/Soul conflict handling | Empty/user-supplied/conflicting identity fixtures |

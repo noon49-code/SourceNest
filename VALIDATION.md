@@ -22,7 +22,7 @@ Not live-verified here: other operating systems, other model providers, Claude's
 
 Generated OpenCode and OMP JavaScript passed Node syntax checks. OpenCode context delivery, Hermes callbacks, Kiro plain-text bridging and two distinct hook subprocess sessions were exercised against synthetic project data. The fresh-setup subprocess used an explicit temporary external state directory. No private vault, real provider, API key, model weight or native GUI trust state was used.
 
-The Windows/macOS/Linux GitHub Actions matrix is prepared but has not been run on the remote service in this task. Native client versions, actual Jev/Laya service responses and a real user-opened assistant session remain live validation steps. Synthetic session receipts prove the test delivery path, not the factual correctness of an assistant answer.
+The Windows/macOS/Linux GitHub Actions matrix passed all 81 tests on Python 3.11 and 3.13: [verified run](https://github.com/noon49-code/SourceNest/actions/runs/39945595965). Native client versions, actual Jev/Laya service responses and a real user-opened assistant session remain live validation steps. Synthetic session receipts prove the test delivery path, not the factual correctness of an assistant answer.
 
 The release also preserves the earlier deployed provenance audit and one bounded extraction-only evidence repair. Added regression tests verify repair uses the extractor role, consumes the shared budget, detects changed sources and rejects paraphrased quotations.
 
