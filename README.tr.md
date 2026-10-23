@@ -1,5 +1,25 @@
 # SourceNest · yapay zekâ kodlama asistanları için taşınabilir proje hafızası
 
+> **SourceNest 2.0:** Windows/macOS/Linux kurulumu, doğrulanmış paket güncellemesi, geri alma/kurtarma, yedi istemci bağlantısı, yapılandırılmış notlar, tanışma akışı ve isteğe bağlı danışman eklendi. [Kapsam ve test matrisi](docs/avenox-v3-adaptation.md) · [Komut rehberi](docs/v2-guide.md).
+
+## Yeni kurulumun kısa yolu
+
+Python 3.11+ ile, kaynak deposunun dışında özel bir kasa ve mevcut proje klasörü seç:
+
+```text
+python setup.py --vault /mutlak/ozel-kasa --workspace /mutlak/proje --project ornek --client codex --client claude
+python setup.py --vault /mutlak/ozel-kasa --workspace /mutlak/proje --project ornek --client codex --client claude --apply
+```
+
+macOS/Linux'ta `python3` kullanılabilir. İlk komut planı gösterir. İstemci hook/klasör güveni kullanıcı tarafından incelenir. Jev/Laya kapalı başlar; Luna yalnız özet, güçlü çıkarıcı karar/tercih/düzeltme/görev çıkarma görevinde kalır. Git yerel kontrol noktaları için isteğe bağlıdır.
+
+Yeni projeler `register` ile eklenir; `clients install --workspace ... --client ...` yalnız seçilen proje içine bağlantı kurar. Çalışma durumu işletim sisteminin yerel uygulama klasöründe tutulabilir; eski kurulumlar `state-migrate` açıkça çalıştırılmadan taşınmaz. Sayaçlar taşınırken sıfırlanmaz.
+
+`note-create --file ...` açıkça verilen bilgiyi proje notuna yazar. Ardından `sync` ve ayrı bir `context --project ... --query ... --json` çağrısıyla kaynak yolu/hash'i geri okunur. Gerçek uygulamada yeni oturum açıp aynı bilgiyi sormadan oturumlar arası kullanımın doğrulandığı söylenmez.
+
+`update --check`, `update`, `rollback` ve `recover` komutları yeni paket formatını kullanır. Ağ güncellemesi, yeni sürümün ZIP ve SHA-256 varlıkları GitHub'da yayımlandıktan sonra kullanılabilir. Değiştirilmiş dosya veya bozuk yedek ezilmez. Kurulum, özel kasaya uygulama ve GitHub yayını ayrı işlemlerdir.
+
+
 ## Projeye döndüğünde her şeyi baştan anlatma
 
 SourceNest, Codex, Claude Code, Cursor ve benzeri yapay zekâ kodlama araçları arasında proje bağlamını korur. Kayıtlı projelerdeki görünür kullanıcı ve asistan mesajlarını yakalar; kararları, tercihleri, düzeltmeleri ve açık işleri kaynak bağlantılarıyla Markdown sayfalarına derler.
@@ -130,3 +150,8 @@ Kişisel kasanı ve Git geçmişini herkese açık paylaşma. Düzenli ayrı yed
 ## Compatibility / Uyumluluk
 
 SourceNest is the public project name. The engine retains the Beyin command names, default vault folder and hook markers for compatibility with existing installations.
+
+
+## Upgrade safety and local refresh
+
+2.0 güncellemesinin yeni kurulum ve tam yönetilen paket geri alma kapsamı rehberde açıklanır. See [the V3 adaptation and upgrade guide](docs/avenox-v3-adaptation.md) for commands, legacy-install review and rollback scope.

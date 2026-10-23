@@ -1,7 +1,29 @@
 # Changelog
 
-## Unreleased
+## 2.0.0 — 2026-10-23
 
+- Independently implement stable SourceNest release discovery, bounded verified package reading,
+  SHA-256 validation, managed update transactions, complete managed rollback and crash recovery.
+- Add cross-platform setup, OS-local runtime state with explicit verified migration, platform shortcuts,
+  an update/source release builder, and a Windows/macOS/Linux test workflow.
+- Add reversible project-local Codex, Claude, Kiro, Antigravity, OpenCode 1.x/2.x, OMP and Hermes integration generators.
+- Add source-backed structured Markdown notes, local note lookup, companion onboarding and session delivery receipts.
+- Add an off-by-default TypeSafe Jev/Laya advisor with source privacy gates, separate auto-context opt-in,
+  conservative Laya shadow mode, source-bound score cache, safe diagnostics and shared call-budget reservations.
+- Add queue review/audit, local check intervals and a diagnostic for counters exceeding the active daily cap.
+- Preserve existing source/evidence validation and separate summary/extractor model roles.
+
+
+- Adapt selected Avenox V3 workflow ideas independently: managed engine hash baselines,
+  read-only upgrade preflight and per-file legacy/customization review.
+- Add checksum-verified engine-only rollback; reject later edits and unsafe backup paths.
+  Upgrade and rollback require the worker lock.
+- Add `doctor --human`, `preferences --human`, and model-free `sync` for local generated views.
+- Document adoption scope and limitations in `docs/avenox-v3-adaptation.md`.
+
+
+- Prefer Codex desktop's current `CODEX_CLI_PATH` over an older `codex` wrapper on `PATH`.
+  This keeps worker calls and `doctor` on the same authenticated CLI.
 - Support an optional `temporary_budget` with a timezone-aware `until` timestamp.
   Workers check expiry before every job and fall back to normal call limits.
   The spent-call counter is preserved. Preferences and doctor show effective limits.

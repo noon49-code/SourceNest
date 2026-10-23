@@ -1,3 +1,5 @@
+> SourceNest 2.0 adds project-local integrations for seven clients. See [current integration and trust steps](v2-guide.md#new-projects-and-clients). The original global Codex/Claude installer and transcript bridges documented below remain compatible.
+
 # Assistant integrations
 
 SourceNest separates **capture**, **summary** and **memory extraction**. Capture adapters turn an assistant's visible conversation into the same source-backed event format. A lightweight summary model writes a neutral synopsis, while a separate stronger model turns the same source events into validated decisions, preferences, corrections and tasks. This keeps the vault portable when you change from Codex to Claude Code, Cursor, or another model provider.

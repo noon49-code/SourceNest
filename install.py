@@ -4,12 +4,14 @@ No credentials, trust decisions or existing vault data are edited implicitly.
 """
 from __future__ import annotations
 import argparse
+import os
 import datetime as dt
 import hashlib
 import json
 from pathlib import Path
 import re
 import shutil
+import shlex
 import subprocess
 import sys
 
@@ -23,6 +25,7 @@ CODEX_EVENTS = ("SessionStart", "Stop", "PreCompact", "SessionEnd", "Interrupt")
 CLAUDE_EVENTS = ("SessionStart", "UserPromptSubmit", "Stop", "PreCompact", "SessionEnd")
 # Kept as the public name used by existing scripts and tests.
 EVENTS = CODEX_EVENTS
+MANAGED_ENGINE = ("engine/beyin.py", "engine/Beyin.ps1", "engine/Beyin.cmd", "engine/portable.py", "engine/maintenance.py", "engine/knowledge.py", "engine/advisor.py", "engine/clients.py", "engine/client_bridge.py", "engine/hermes_bridge.py")
 
 
 def _managed_commands(settings, target, adapter):
@@ -47,6 +50,8 @@ def _command(target, adapter=None):
     python = str(Path(sys.executable).resolve()).replace("'", "''")
     script = str(target / "engine" / "beyin.py").replace("'", "''")
     suffix = "" if adapter in (None, "codex") else f" --adapter {adapter}"
+    if os.name != "nt":
+        return shlex.join([sys.executable, str(target / "engine/beyin.py"), "hook"] + (["--adapter", adapter] if adapter not in (None, "codex") else []))
     return f'''powershell.exe -NoProfile -NonInteractive -Command "& '{python}' -X utf8 '{script}' hook{suffix}"'''
 
 
@@ -212,15 +217,18 @@ def _apply_external_changes(target, changes, label):
         originals.append({"path": str(path), "existed": previous is not None,
                           "backup": str(saved) if previous is not None else None,
                           "before_sha256": beyin.digest(previous) if previous is not None else None,
-                          "after_sha256": beyin.digest(text.encode("utf-8"))})
+                          "after_sha256": beyin.digest(text.encode("utf-8")) if text is not None else None})
     beyin.atomic(backup / "manifest.json", originals)
     try:
         for path, text in changes.items():
-            beyin.atomic(path, text)
+            if text is None:
+                path.unlink(missing_ok=True)
+            else:
+                beyin.atomic(path, text)
     except Exception:
         for item in originals:
             path = Path(item["path"])
-            if path.exists() and beyin.digest(path.read_bytes()) == item["after_sha256"]:
+            if (beyin.digest(path.read_bytes()) if path.exists() else None) == item["after_sha256"]:
                 if item["existed"]:
                     path.write_bytes(Path(item["backup"]).read_bytes())
                 else:
@@ -250,13 +258,108 @@ def integrate(target, codex_home=None, claude_home=None):
             "external_files": list(map(str, changes))}
 
 
-def upgrade(target, codex_home=None, claude_home=None):
+def upgrade(target, codex_home=None, claude_home=None, accepted=()):
+    target = target.resolve()
+    if not (target / "engine/beyin.py").is_file():
+        raise ValueError("Target is not an existing SourceNest vault")
+    with beyin.lock(beyin.state_dir(target) / "worker.lock") as held:
+        if not held:
+            raise ValueError("Worker busy; stop processing before upgrading")
+        return _upgrade_unlocked(target, codex_home, claude_home, accepted)
+
+
+def rollback_engine(target):
+    target = target.resolve()
+    if not (target / "engine/beyin.py").is_file():
+        raise ValueError("Target is not an existing SourceNest vault")
+    with beyin.lock(beyin.state_dir(target) / "worker.lock") as held:
+        if not held:
+            raise ValueError("Worker busy; stop processing before rolling back")
+        return _rollback_engine_unlocked(target)
+
+
+def managed_hashes(target):
+    return {name: beyin.digest((target / name).read_bytes())
+            for name in MANAGED_ENGINE if (target / name).is_file()}
+
+
+def upgrade_plan(target, accepted=()):
+    """Preflight every managed file before any write, including legacy installs."""
+    target = target.resolve()
+    if not (target / "engine/beyin.py").is_file():
+        raise ValueError("Target is not an existing SourceNest vault")
+    accepted = set(accepted)
+    if not accepted.issubset(MANAGED_ENGINE):
+        raise ValueError("Only named managed engine files can be accepted")
+    state = beyin.read_json(target / ".state/installation.json", {})
+    expected = state.get("managed_engine_sha256", {})
+    files = []
+    for name in MANAGED_ENGINE:
+        path = target / name
+        if path.is_symlink() or path.parent.is_symlink():
+            raise ValueError("Refusing symlink managed engine path: " + name)
+        current = beyin.digest(path.read_bytes()) if path.exists() else None
+        incoming = beyin.digest((PACKAGE / name).read_bytes())
+        baseline = expected.get(name)
+        conflict = current is not None and current != incoming and (baseline is None or current != baseline)
+        files.append({"file": name, "changed": current != incoming,
+                      "conflict": conflict, "accepted": name in accepted})
+    return {"engine_version": beyin.VERSION, "files": files,
+            "conflicts": [f["file"] for f in files if f["conflict"] and not f["accepted"]]}
+
+
+def _rollback_engine_unlocked(target):
+    """Restore the last engine upgrade only; never overwrite later user edits."""
+    target = target.resolve()
+    state_path = target / ".state/installation.json"
+    state = beyin.read_json(state_path, {})
+    backup = Path(state.get("upgrade_backup", "")).resolve()
+    if not backup.is_relative_to((target / ".backups").resolve()) or not backup.is_dir():
+        raise ValueError("No valid local engine upgrade backup")
+    manifest = beyin.read_json(backup / "manifest.json", [])
+    changes = {}
+    for name in MANAGED_ENGINE:
+        path = target / name
+        entries = [item for item in manifest if item["path"] == str(path)]
+        if len(entries) != 1:
+            raise ValueError("Incomplete engine rollback manifest: " + name)
+        item = entries[0]
+        if path.is_symlink() or path.parent.is_symlink() or not path.is_file():
+            raise ValueError("Unsafe or missing managed engine file: " + name)
+        if beyin.digest(path.read_bytes()) != item["after_sha256"]:
+            raise ValueError("Rollback conflict: managed file changed " + name)
+        if not item["existed"]:
+            changes[path] = None
+            continue
+        saved = Path(item.get("backup") or "").resolve()
+        if not saved.is_relative_to(backup) or not saved.is_file():
+            raise ValueError("Invalid engine rollback source: " + name)
+        data = saved.read_bytes()
+        if beyin.digest(data) != item["before_sha256"]:
+            raise ValueError("Engine rollback backup checksum mismatch: " + name)
+        changes[path] = data.decode("utf-8")
+    recovery = _apply_external_changes(target, changes, "rollback-engine")
+    state["managed_engine_sha256"] = managed_hashes(target)
+    state["engine_rolled_back_at"] = beyin.now()
+    state["engine_rollback_backup"] = str(recovery)
+    state.pop("upgrade_backup", None)
+    match = re.search(r'VERSION = ["\']([^"\']+)', (target / "engine/beyin.py").read_text(encoding="utf-8"))
+    state["engine_version"] = match.group(1) if match else None
+    beyin.atomic(state_path, state)
+    return {"engine_rolled_back": True, "engine_version": state["engine_version"],
+            "integrations": "unchanged", "backup": str(recovery)}
+
+
+def _upgrade_unlocked(target, codex_home=None, claude_home=None, accepted=()):
     """Upgrade managed engine files and optionally connect assistant clients."""
     target = target.resolve()
     if not target.is_dir() or not (target / "engine" / "beyin.py").is_file():
         raise ValueError("Target is not an existing SourceNest vault")
+    report = upgrade_plan(target, accepted)
+    if report["conflicts"]:
+        raise ValueError("Upgrade conflict: managed files changed or have no baseline: " + ", ".join(report["conflicts"]))
     changes = {}
-    for name in ("engine/beyin.py", "engine/Beyin.ps1", "engine/Beyin.cmd"):
+    for name in MANAGED_ENGINE:
         source = PACKAGE / name
         if source.exists():
             changes[target / name] = source.read_text(encoding="utf-8")
@@ -266,7 +369,7 @@ def upgrade(target, codex_home=None, claude_home=None):
     state = beyin.read_json(state_path, {})
     state.update({"schema_version": 1, "target": str(target),
                   "engine_version": beyin.VERSION, "upgraded_at": beyin.now(),
-                  "upgrade_backup": str(backup)})
+                  "upgrade_backup": str(backup), "managed_engine_sha256": managed_hashes(target)})
     if codex_home:
         state["codex_home"] = str(codex_home)
     if claude_home:
@@ -281,9 +384,12 @@ def upgrade(target, codex_home=None, claude_home=None):
 
 
 def install(target, codex_home, registry, claude_home=None):
+    target = target.resolve()
+    if target.is_relative_to(PACKAGE):
+        raise ValueError("Choose a private vault outside the source checkout")
     if target.exists():
         raise ValueError("Target already exists. Inspect it and use a reviewed upgrade; refusing to overwrite.")
-    changes = integrations(target, codex_home, claude_home)
+    changes = integrations(target, codex_home, claude_home) if (codex_home or claude_home) else {}
     target.mkdir(parents=True)
     originals = []
     try:
@@ -303,7 +409,8 @@ def install(target, codex_home, registry, claude_home=None):
             beyin.atomic(base / "notes" / "EXISTING-SOURCES.md", "# Mevcut proje kaynakları\n\nBu dosya konumları kaydeder; içerikler topluca aktarılmadı.\n\n" + refs + "\n")
         for name in (".state", ".queue", ".backups"):
             (target / name).mkdir()
-        subprocess.run(["git", "init", "-q", str(target)], check=True, capture_output=True, **beyin.hidden())
+        if shutil.which("git"):
+            subprocess.run(["git", "init", "-q", str(target)], check=True, capture_output=True, **beyin.hidden())
         backup = target / ".backups" / dt.datetime.now().strftime("install-%Y%m%d-%H%M%S")
         backup.mkdir()
         for index, (path, text) in enumerate(changes.items()):
@@ -314,19 +421,22 @@ def install(target, codex_home, registry, claude_home=None):
             originals.append({"path": str(path), "existed": previous is not None,
                               "backup": str(saved) if previous is not None else None,
                               "before_sha256": beyin.digest(previous) if previous is not None else None,
-                              "after_sha256": beyin.digest(text.encode("utf-8"))})
+                              "after_sha256": beyin.digest(text.encode("utf-8")) if text is not None else None})
         # Save the restore manifest before touching the external integration files.
         beyin.atomic(backup / "manifest.json", originals)
         for path, text in changes.items():
-            beyin.atomic(path, text)
-        beyin.atomic(target / ".state" / "installation.json", dict(plan(target, codex_home, registry, claude_home), installed_at=beyin.now(), backup=str(backup)))
+            if text is None:
+                path.unlink(missing_ok=True)
+            else:
+                beyin.atomic(path, text)
+        beyin.atomic(target / ".state" / "installation.json", dict((plan(target, codex_home, registry, claude_home) if (codex_home or claude_home) else {"target": str(target)}), installed_at=beyin.now(), backup=str(backup), managed_engine_sha256=managed_hashes(target)))
         beyin.checkpoint(target)
         return {"installed": str(target), "backup": str(backup), "external_files": list(map(str, changes))}
     except Exception:
         # Restore only files already changed to our exact planned content.
         for item in originals:
             path = Path(item["path"])
-            if path.exists() and beyin.digest(path.read_bytes()) == item["after_sha256"]:
+            if (beyin.digest(path.read_bytes()) if path.exists() else None) == item["after_sha256"]:
                 if item["existed"]:
                     path.write_bytes(Path(item["backup"]).read_bytes())
                 else:
@@ -336,6 +446,9 @@ def install(target, codex_home, registry, claude_home=None):
 
 
 def main():
+    for stream in (sys.stdin, sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--target", type=Path, required=True)
     p.add_argument("--codex-home", type=Path)
@@ -350,20 +463,28 @@ def main():
                    help="Upgrade managed engine files in an existing vault")
     p.add_argument("--verify", action="store_true",
                    help="Read-only check of the vault and selected integrations")
+    p.add_argument("--plan", action="store_true", help="Read-only engine upgrade preflight")
+    p.add_argument("--accept-engine-file", action="append", default=[], choices=MANAGED_ENGINE,
+                   help="Explicitly accept replacing one reviewed modified/legacy engine file")
+    p.add_argument("--rollback-engine", action="store_true", help="Restore the last engine upgrade; integrations stay unchanged")
     args = p.parse_args()
-    if not args.codex_home and not args.claude_home and not args.upgrade and not args.integrate and not args.verify:
+    if not args.codex_home and not args.claude_home and not args.upgrade and not args.integrate and not args.verify and not args.rollback_engine:
         p.error("At least one of --codex-home or --claude-home is required")
     target = args.target.resolve()
     codex_home = args.codex_home.resolve() if args.codex_home else None
     claude_home = args.claude_home.resolve() if args.claude_home else None
-    if sum(bool(x) for x in (args.integrate, args.upgrade, args.verify)) > 1:
+    if sum(bool(x) for x in (args.integrate, args.upgrade, args.verify, args.rollback_engine)) > 1:
         p.error("Use only one of --integrate, --upgrade or --verify")
-    if args.apply and (args.integrate or args.upgrade or args.verify):
+    if args.apply and (args.integrate or args.upgrade or args.verify or args.rollback_engine):
         p.error("--apply is only used for a new-vault install")
-    if args.integrate:
+    if (args.plan or args.accept_engine_file) and not args.upgrade:
+        p.error("--plan and --accept-engine-file require --upgrade")
+    if args.rollback_engine:
+        result = rollback_engine(target)
+    elif args.integrate:
         result = integrate(target, codex_home, claude_home)
     elif args.upgrade:
-        result = upgrade(target, codex_home, claude_home)
+        result = upgrade_plan(target, args.accept_engine_file) if args.plan else upgrade(target, codex_home, claude_home, args.accept_engine_file)
     elif args.verify:
         result = verify(target, codex_home, claude_home)
     else:

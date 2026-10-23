@@ -1,12 +1,14 @@
 # SourceNest — portable project memory for AI coding assistants
 
+> **SourceNest 2.0:** Cross-platform setup, verified package updates with rollback/recovery, seven client integrations, structured notes, companion onboarding and an opt-in advisor are implemented. See the [2.0 guide](docs/v2-guide.md) and [capability/test matrix](docs/avenox-v3-adaptation.md). Native application/provider verification is separate from offline tests.
+
 ## Pick up a project without retelling its history
 
 SourceNest keeps project context across Codex, Claude Code, Cursor, and other AI coding tools on Windows. It captures visible user and assistant messages from registered projects, then compiles decisions, preferences, corrections, and open work into Markdown pages with links back to the source messages.
 
 One private vault holds a separate folder for each project. The vault lives outside your code repositories. Its JSON records and Markdown pages do not depend on a model vendor, so you can change assistants or summarizers without rewriting the memory format. Automatic lifecycle hooks are available for Codex and Claude Code; a normalized JSONL bridge covers tools that expose an export or stream instead of a compatible hook.
 
-[Install](#install-powershell) · [Common questions](#common-questions) · [Türkçe rehber](README.tr.md) · [Validation](VALIDATION.md) · [Privacy](PRIVACY.md)
+[Install](#install-windowsmacoslinux) · [Common questions](#common-questions) · [Türkçe rehber](README.tr.md) · [Validation](VALIDATION.md) · [Privacy](PRIVACY.md)
 
 **Current scope:** early release, with live capture tested on Windows + Codex CLI. Claude Code hook files and Cursor/normalized adapters are covered by local fixtures. Summaries currently use Turkish. The configured summary model is used only for a neutral queued synopsis; a separate, stronger extraction model produces source-backed decisions, preferences, corrections and tasks. Capture, context loading, source storage, evidence validation and Markdown rendering stay local. Local storage does not mean model calls are offline.
 
@@ -47,7 +49,7 @@ The extraction model proposes structured memory data. Local code checks the sour
 
 ## Status
 
-Early release, engine 1.4.1. Windows + Codex CLI is the live-tested automatic integration; Claude Code wiring and provider-neutral adapters are included. Python 3.11+ and Git are required. No third-party Python dependencies.
+Engine 2.0.0. Windows + Codex CLI is the live-tested automatic integration; Claude Code wiring and provider-neutral adapters are included. Python 3.11+ is required; Git is optional for local checkpoints. No third-party Python dependencies.
 
 The engine was live-tested with Codex CLI 0.154.0-alpha.6.2 and `gpt-5.6-luna`. Luna is the low-effort summary model; the default `gpt-5.6-sol` extractor uses high reasoning effort for source-backed decisions and corrections. Change `summarizer.model` or `extractor.model` in the installed vault's `config.json` when needed; `max` is available for either role when you prefer slower, deeper passes. The selected models must be available to your own account. CLI flags and hook formats can change between releases. Markdown summaries and engine messages currently use Turkish.
 
@@ -61,7 +63,20 @@ The engine was live-tested with Codex CLI 0.154.0-alpha.6.2 and `gpt-5.6-luna`. 
 
 Source text cannot choose output paths. Assistant proposals cannot become user decisions solely on assistant evidence. Quote validation does not prove that an interpretation is correct. Memory is historical data, never new authorization.
 
-## Install (PowerShell)
+## Install (Windows/macOS/Linux)
+
+Use Python 3.11+ (`python` on Windows, `python3` on macOS/Linux). Preview first, then apply:
+
+```text
+python setup.py --vault /absolute/private-vault --workspace /absolute/project --project demo --client codex --client claude
+python setup.py --vault /absolute/private-vault --workspace /absolute/project --project demo --client codex --client claude --apply
+```
+
+See the [2.0 guide](docs/v2-guide.md) for all seven clients, native trust steps, private runtime state, update assets and readback. Use a vault outside the public source checkout. This source version has not yet been published as a stable release.
+
+### Legacy installer (PowerShell)
+
+The following compatibility flow keeps the original global Codex/Claude integrations and legacy state layout. Prefer `setup.py` for new cross-platform installations.
 
 Download and extract the repository, then open PowerShell in the extracted folder. Ensure `python` and `git` are available. Add the assistant homes you want to connect; Codex summarization also needs a working `codex login status`.
 
@@ -238,3 +253,8 @@ No hosted service, telemetry, automatic cloud backup, embedding database or glob
 ## Compatibility / Uyumluluk
 
 SourceNest is the public project name. The engine retains the Beyin command names, default vault folder and hook markers for compatibility with existing installations.
+
+
+## Upgrade safety and local refresh
+
+The 2.0 update adds verified packages, full managed-package rollback/recovery, native setup, client integrations and local note workflows. The legacy engine-only rollback remains available. See [the V3 adaptation and upgrade guide](docs/avenox-v3-adaptation.md) for commands, legacy-install review and rollback scope.

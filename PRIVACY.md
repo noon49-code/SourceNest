@@ -13,3 +13,14 @@ The public repository is software, not a personal vault. Install the vault elsew
 - There is no built-in telemetry, remote upload of the vault, encryption, automatic remote backup or guaranteed capture after a crash.
 
 Do not publish vault directories, their .git history, project registries, profile preferences, queue/state, integration backups or live transcripts. The public .gitignore is a guardrail, not a guarantee. The installed vault intentionally uses a separate vault.gitignore so local private history can record memory.
+
+
+## SourceNest 2.0 additions
+
+Structured notes default to private and remote-disabled. Normal local lookup/sync and companion setup make no model calls. Explicit advisor requests require an enabled mode and eligible source metadata; auto-context is a separate opt-in. They may send prompts and complete bounded eligible note text to TypeSafe, or to the explicitly selected loopback Laya service. The daily worker budget also bounds advisor calls. Shadow mode still sends eligible data for scoring.
+
+Runtime state may live outside the vault and must not be cloud-synced. It contains counters, cursors, score-only caches, no-text call metadata and maintenance backup content. Recovery journals can contain previous engine/client configuration, including local paths: keep the runtime directory private. `.sourcenest-runtime.json` pins this machine's state path.
+
+Project-local client files can contain interpreter and vault paths. Review them before committing project changes; no installer or updater pushes to GitHub. The release builder uses an explicit source whitelist and never archives a working vault, Git metadata, local config, queues or transcripts. A SHA-256 sidecar detects corruption; its authenticity depends on obtaining both assets from the trusted official release over HTTPS.
+
+Details and transaction boundaries: [2.0 guide](docs/v2-guide.md).

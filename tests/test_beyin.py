@@ -35,6 +35,31 @@ class MemoryTests(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
 
+    def test_sync_is_local_and_uses_the_worker_lock(self):
+        with patch('beyin.run_model', side_effect=AssertionError('No model call allowed')):
+            result = beyin.sync_views(self.root)
+        self.assertEqual(set(result['synced']), {'alpha', 'beta'})
+        self.assertEqual(result['model_calls'], 0)
+        with beyin.lock(self.root / '.state/worker.lock'):
+            with self.assertRaisesRegex(ValueError, 'Worker busy'):
+                beyin.sync_views(self.root)
+
+    def test_human_report_contains_queue_and_model_roles(self):
+        report = beyin.human_report({'pending': 2, 'needs_review': 1,
+                    'summary_model': 'summary-only', 'extraction_model': 'strong',
+                    'effective_limits': {'max_calls_per_day': 60}})
+        self.assertIn('Needs review: 1', report)
+        self.assertIn('Summary model: summary-only', report)
+        self.assertIn('Calls per day: 60', report)
+
+    def test_codex_binary_prefers_host_cli_over_path_wrapper(self):
+        with tempfile.TemporaryDirectory(prefix="codex-cli-test-") as tmp:
+            host_cli = Path(tmp) / "codex.exe"
+            host_cli.write_bytes(b"synthetic executable placeholder")
+            with patch.dict(os.environ, {"CODEX_CLI_PATH": str(host_cli)}), \
+                    patch("beyin.shutil.which", return_value=r"C:\\old\\codex.cmd"):
+                self.assertEqual(beyin.codex_binary({}), str(host_cli))
+
     def write_turns(self, texts, append=False):
         with self.transcript.open("a" if append else "w", encoding="utf-8", newline="\n") as stream:
             for i, (role, text) in enumerate(texts):
@@ -376,6 +401,31 @@ class MemoryTests(unittest.TestCase):
         commands = [h["command"] for groups in settings["hooks"].values() for group in groups for h in group["hooks"]]
         self.assertTrue(any("--adapter claude" in command for command in commands))
         self.assertIn("Existing Claude rule.", second[home / "CLAUDE.md"])
+
+    def test_preserved_quote_repair_uses_extractor_and_budget(self):
+        event = self.event()
+        bad = self.summary(event)
+        bad['items'][0]['evidence_quote'] = 'invented quotation'
+        good = self.summary(event)
+        with patch('beyin.run_model', return_value=(bad, {})), patch('beyin.run_provider', return_value=({'items': good['items']}, {})) as provider:
+            report = beyin.process(self.root)
+        self.assertEqual(report['processed'], 1)
+        self.assertEqual(provider.call_count, 1)
+        self.assertEqual(provider.call_args.args[1], beyin.config(self.root)['extractor'])
+        self.assertEqual(beyin.read_json(self.root / '.state/budget.json')['calls'], 3)
+
+    def test_preserved_audit_detects_changed_source(self):
+        event = self.event()
+        beyin.process(self.root, runner=lambda root, event, topics: (self.summary(event), {}))
+        source = self.root / 'projects/alpha/raw/events' / (event['id'] + '.json')
+        source.write_bytes(source.read_bytes() + b' ')
+        result = beyin.audit(self.root, 'alpha')
+        self.assertEqual(result['status'], 'error')
+        self.assertIn('record-source-changed', {f['code'] for f in result['findings']})
+
+    def test_preserved_evidence_normalization_rejects_paraphrase(self):
+        self.assertTrue(beyin._evidence_contains('"Keep it" - yes', '“Keep it” — yes'))
+        self.assertFalse(beyin._evidence_contains('Retain it', 'Keep it'))
 
     def test_redaction(self):
         text = "api_key=sk-abcdefghijklmnopqrstuvwxyz password=hunter2 Bearer abc123"

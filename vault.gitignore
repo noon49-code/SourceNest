@@ -10,3 +10,7 @@ auth.json
 *secret*
 *.local.json
 .obsidian/workspace*
+
+# Machine-local SourceNest runtime pointer and build output
+.sourcenest-runtime.json
+dist/
