@@ -141,13 +141,19 @@ class RuntimeTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             maintenance.latest_release(lambda url: json.dumps(release).encode())
 
+    def test_note_paths_accept_equivalent_vault_spelling(self):
+        alias = self.root / '..' / self.root.name
+        report = knowledge.create(alias, {'project': 'demo', 'title': 'Alias', 'body': 'Portable source.'})
+        self.assertEqual(Path(report['created']).as_posix(), 'projects/demo/notes/alias.md')
+        self.assertEqual(knowledge.lookup(alias, 'demo', 'Portable')[0]['source'], 'projects/demo/notes/alias.md')
+
     def test_external_state_migration_preserves_counter_and_cursor(self):
         old = self.root / ".state"
         portable.write(old / "budget.json", {"date": "2026-10-23", "calls": 182})
         portable.write(old / "cursors/demo.json", {"offset": 100})
         destination = self.base / "runtime"
         portable.migrate_state(self.root, destination)
-        self.assertEqual(portable.state_dir(self.root), destination)
+        self.assertEqual(portable.state_dir(self.root), destination.resolve())
         self.assertEqual(portable.read(destination / "budget.json")["calls"], 182)
         self.assertEqual(portable.read(destination / "cursors/demo.json")["offset"], 100)
         self.assertTrue((old / "budget.json").exists())
@@ -357,7 +363,7 @@ class RuntimeTests(unittest.TestCase):
         state = self.base / 'new-state'
         result = subprocess.run([sys.executable, str(PACKAGE / 'setup.py'), '--vault', str(vault), '--state', str(state), '--workspace', str(self.project), '--project', 'demo', '--client', 'kiro', '--apply'], capture_output=True, text=True, encoding='utf-8', check=True, timeout=30)
         self.assertEqual(json.loads(result.stdout)['status'], 'installed')
-        self.assertEqual(portable.state_dir(vault), state)
+        self.assertEqual(portable.state_dir(vault), state.resolve())
         self.assertEqual((vault / '.sourcenest-version').read_text().strip(), '2.0.0')
         self.assertTrue((vault / 'beyin.py').exists())
         commands = subprocess.run([sys.executable, str(vault / 'beyin.py'), 'preferences', '--human'], capture_output=True, text=True, check=True)

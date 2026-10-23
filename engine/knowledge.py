@@ -25,6 +25,7 @@ def slug(value):
 
 
 def create(root, data):
+    root = Path(root).resolve()
     import beyin
     if not isinstance(data, dict) or set(data) - {"project", "title", "body", "slug", "folder", "visibility", "remote_allowed", "sensitivity", "aliases"}:
         raise ValueError("Unknown note fields")
@@ -62,6 +63,7 @@ def create(root, data):
 
 
 def sources(root, project):
+    root = Path(root).resolve()
     base = project_base(root, project)
     found = []
     for folder in ("notes", "knowledge"):
@@ -115,6 +117,7 @@ def sync(root, project=None):
 
 
 def companion(root, data=None):
+    root = Path(root).resolve()
     candidates = [p for name in ("Core.md", "Soul.md") for p in root.rglob(name) if not any(part in (".backups", ".git") for part in p.parts)]
     target = root / "companion/Core.md"
     if candidates and (len(candidates) != 1 or candidates[0] != target):

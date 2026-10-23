@@ -851,7 +851,7 @@ def add_aliases(root, project_id, topic, aliases):
     data["schema_version"] = 1
     atomic(path, data)
     return {"project_id": project_id, "topic": canonical, "aliases": existing,
-            "path": path.relative_to(root).as_posix()}
+            "path": path.relative_to(root.resolve()).as_posix()}
 
 
 def _alias_values(alias_map, title, tid):

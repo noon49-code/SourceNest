@@ -18,7 +18,7 @@ Not live-verified here: other operating systems, other model providers, Claude's
 
 ## SourceNest 2.0 — 2026-10-23
 
-80 synthetic offline tests passed on Windows / Python 3.11. Python compilation and git diff whitespace validation passed. This includes the previous evidence/model-role suite and new verified package build/update/rollback/recovery, corruption and path attacks, legacy engine migration, runtime state and budget preservation, note privacy/readback, companion conflicts, shared-budget advisor scoring and Laya credential/checkpoint/truncation gates.
+81 synthetic offline tests passed on Windows / Python 3.11. Python compilation and git diff whitespace validation passed. This includes the previous evidence/model-role suite and new verified package build/update/rollback/recovery, corruption and path attacks, legacy engine migration, runtime state and budget preservation, note privacy/readback, companion conflicts, shared-budget advisor scoring and Laya credential/checkpoint/truncation gates.
 
 Generated OpenCode and OMP JavaScript passed Node syntax checks. OpenCode context delivery, Hermes callbacks, Kiro plain-text bridging and two distinct hook subprocess sessions were exercised against synthetic project data. The fresh-setup subprocess used an explicit temporary external state directory. No private vault, real provider, API key, model weight or native GUI trust state was used.
 
@@ -27,3 +27,5 @@ The Windows/macOS/Linux GitHub Actions matrix is prepared but has not been run o
 The release also preserves the earlier deployed provenance audit and one bounded extraction-only evidence repair. Added regression tests verify repair uses the extractor role, consumes the shared budget, detects changed sources and rejects paraphrased quotations.
 
 A Windows upgrade of an existing private vault was then verified with doctor, audit and review: configuration, registry, source events, compiled records, notes and generated views remained byte-identical. Existing model roles, runtime location and budgets were preserved; the optional advisor remained off. No backlog processing or provider call was performed during the upgrade.
+
+The initial remote matrix exposed equivalent-path handling on macOS (/var versus /private/var) and Windows short temporary paths. Note creation/readback now canonicalizes the vault root; a regression fixture covers equivalent path spellings. Runtime migration assertions compare canonical destinations.
