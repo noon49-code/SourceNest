@@ -1,0 +1,123 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 520" width="820" height="520">
+  <defs>
+    <style>
+      @keyframes blink { 0%,49% { opacity: 1; } 50%,100% { opacity: 0; } }
+      @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+      .cursor { animation: blink 1s step-end infinite; }
+      .prompt { fill: #50fa7b; font-weight: bold; }
+      .cmd { fill: #f8f8f2; }
+      .output { fill: #8be9fd; }
+      .dim { fill: #6272a4; }
+      .highlight { fill: #ffb86c; }
+      .success { fill: #50fa7b; }
+      .title { fill: #ff79c6; font-weight: bold; }
+      .value { fill: #f1fa8c; }
+      .line1 { animation: fadeIn 0.3s ease forwards; animation-delay: 0.5s; opacity: 0; }
+      .line2 { animation: fadeIn 0.3s ease forwards; animation-delay: 0.9s; opacity: 0; }
+      .line3 { animation: fadeIn 0.3s ease forwards; animation-delay: 1.2s; opacity: 0; }
+      .line4 { animation: fadeIn 0.3s ease forwards; animation-delay: 1.5s; opacity: 0; }
+      .line5 { animation: fadeIn 0.3s ease forwards; animation-delay: 1.8s; opacity: 0; }
+      .line6 { animation: fadeIn 0.3s ease forwards; animation-delay: 2.1s; opacity: 0; }
+      .line7 { animation: fadeIn 0.3s ease forwards; animation-delay: 2.4s; opacity: 0; }
+      .line8 { animation: fadeIn 0.3s ease forwards; animation-delay: 3.2s; opacity: 0; }
+      .line9 { animation: fadeIn 0.3s ease forwards; animation-delay: 3.5s; opacity: 0; }
+      .line10 { animation: fadeIn 0.3s ease forwards; animation-delay: 3.8s; opacity: 0; }
+      .line11 { animation: fadeIn 0.3s ease forwards; animation-delay: 4.1s; opacity: 0; }
+      .line12 { animation: fadeIn 0.3s ease forwards; animation-delay: 4.4s; opacity: 0; }
+      .line13 { animation: fadeIn 0.3s ease forwards; animation-delay: 4.7s; opacity: 0; }
+      .line14 { animation: fadeIn 0.3s ease forwards; animation-delay: 5.5s; opacity: 0; }
+      .line15 { animation: fadeIn 0.3s ease forwards; animation-delay: 5.8s; opacity: 0; }
+      .line16 { animation: fadeIn 0.3s ease forwards; animation-delay: 6.1s; opacity: 0; }
+      .line17 { animation: fadeIn 0.3s ease forwards; animation-delay: 6.4s; opacity: 0; }
+      .line18 { animation: fadeIn 0.3s ease forwards; animation-delay: 6.7s; opacity: 0; }
+      .line19 { animation: fadeIn 0.3s ease forwards; animation-delay: 7.0s; opacity: 0; }
+      .line20 { animation: fadeIn 0.3s ease forwards; animation-delay: 7.3s; opacity: 0; }
+      .line21 { animation: fadeIn 0.3s ease forwards; animation-delay: 7.6s; opacity: 0; }
+    </style>
+  </defs>
+
+  <!-- Terminal window -->
+  <rect width="820" height="520" rx="10" fill="#282a36"/>
+
+  <!-- Title bar -->
+  <rect width="820" height="36" rx="10" fill="#44475a"/>
+  <rect y="26" width="820" height="10" fill="#44475a"/>
+  <circle cx="20" cy="18" r="7" fill="#ff5555"/>
+  <circle cx="42" cy="18" r="7" fill="#f1fa8c"/>
+  <circle cx="64" cy="18" r="7" fill="#50fa7b"/>
+  <text x="410" y="23" text-anchor="middle" fill="#f8f8f2" font-family="monospace" font-size="13">SourceNest — Portable Project Memory</text>
+
+  <!-- Terminal content -->
+  <g font-family="'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace" font-size="13">
+
+    <!-- Command 1: doctor -->
+    <g class="line1">
+      <text x="20" y="62"><tspan class="prompt">❯ </tspan><tspan class="cmd">sourcenest doctor --human</tspan></text>
+    </g>
+    <g class="line2">
+      <text x="20" y="82"><tspan class="title">SourceNest 2.0.0</tspan></text>
+    </g>
+    <g class="line3">
+      <text x="20" y="102"><tspan class="dim">Provider:</tspan><tspan class="value"> openai_responses</tspan></text>
+    </g>
+    <g class="line4">
+      <text x="20" y="122"><tspan class="dim">Summary model:</tspan><tspan class="value"> gpt-5.6-luna</tspan></text>
+    </g>
+    <g class="line5">
+      <text x="20" y="142"><tspan class="dim">Extraction model:</tspan><tspan class="value"> gpt-5.6-sol</tspan></text>
+    </g>
+    <g class="line6">
+      <text x="20" y="162"><tspan class="dim">Profile:</tspan><tspan class="value"> normal</tspan><tspan class="dim">  │  Calls per day:</tspan><tspan class="value"> 20</tspan><tspan class="dim">  │  Pending:</tspan><tspan class="value"> 0</tspan></text>
+    </g>
+    <g class="line7">
+      <text x="20" y="182"><tspan class="success">✓ All systems operational</tspan></text>
+    </g>
+
+    <!-- Command 2: context -->
+    <g class="line8">
+      <text x="20" y="212"><tspan class="prompt">❯ </tspan><tspan class="cmd">sourcenest context --project my-app --cwd .</tspan></text>
+    </g>
+    <g class="line9">
+      <text x="20" y="232"><tspan class="output">[Beyin: kalıcı proje hafızası]</tspan></text>
+    </g>
+    <g class="line10">
+      <text x="20" y="252"><tspan class="dim">Proje:</tspan><tspan class="value"> my-app</tspan></text>
+    </g>
+    <g class="line11">
+      <text x="20" y="272"><tspan class="dim">Son çalışma:</tspan><tspan class="value"> Auth sistemi JWT'den session tabanlıya geçirildi.</tspan></text>
+    </g>
+    <g class="line12">
+      <text x="20" y="292"><tspan class="dim">Açık iş:</tspan><tspan class="value"> Redis cache entegrasyonu, API rate limiting</tspan></text>
+    </g>
+    <g class="line13">
+      <text x="20" y="312"><tspan class="highlight">📄 wiki/index.md — 12 konu, 47 kaynak</tspan></text>
+    </g>
+
+    <!-- Command 3: search -->
+    <g class="line14">
+      <text x="20" y="342"><tspan class="prompt">❯ </tspan><tspan class="cmd">sourcenest search --project my-app --query "database"</tspan></text>
+    </g>
+    <g class="line15">
+      <text x="20" y="362"><tspan class="output">Yerel hafıza araması: database</tspan></text>
+    </g>
+    <g class="line16">
+      <text x="20" y="382"><tspan class="success">●</tspan><tspan class="value"> Database Migration</tspan><tspan class="dim"> — wiki/topics/database-migration-a3f1.md</tspan></text>
+    </g>
+    <g class="line17">
+      <text x="20" y="402"><tspan class="dim">  PostgreSQL 16'ya geçiş kararı; Prisma ORM tercih edildi.</tspan></text>
+    </g>
+    <g class="line18">
+      <text x="20" y="422"><tspan class="success">●</tspan><tspan class="value"> Connection Pooling</tspan><tspan class="dim"> — wiki/topics/connection-pooling-8b2c.md</tspan></text>
+    </g>
+    <g class="line19">
+      <text x="20" y="442"><tspan class="dim">  Neon pooler üzerinden bağlantı; max 25 connection.</tspan></text>
+    </g>
+    <g class="line20">
+      <text x="20" y="462"><tspan class="success">●</tspan><tspan class="value"> Schema Design</tspan><tspan class="dim"> — wiki/topics/schema-design-e9d4.md</tspan></text>
+    </g>
+    <g class="line21">
+      <text x="20" y="482"><tspan class="dim">  Soft-delete standardı; created_at/updated_at her tabloda.</tspan></text>
+    </g>
+
+  </g>
+</svg>

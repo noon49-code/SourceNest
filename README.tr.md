@@ -30,6 +30,10 @@ Tek bir özel kasa, kod depolarının dışında durur; her projenin hafızası 
 
 ![SourceNest veri akışı: oturumdan kaynak kaydına ve proje wiki'sine](docs/architecture.svg)
 
+### Demo
+
+![SourceNest terminal oturumu demosu](docs/demo.svg)
+
 ~~~mermaid
 flowchart TD
     A[Codex / Claude / diğer oturum] -->|kullanıcı ve asistan metni| B[Yaşam kancaları veya JSONL köprüsü]

@@ -14,6 +14,10 @@ One private vault holds a separate folder for each project. The vault lives outs
 
 ![SourceNest data flow: assistant session to source record, validated memory, and project wiki](docs/architecture.svg)
 
+### Demo
+
+![SourceNest terminal session demo](docs/demo.svg)
+
 | When you need to… | SourceNest keeps… |
 | --- | --- |
 | pick up a project after a break | the project status, index, and durable context |
