@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.1 — 2026-11-15
+
+- Add PyPI packaging support (`pyproject.toml`, `engine/__init__.py`) for `pip install sourcenest`.
+- Add animated terminal session demo in documentation.
+- Build verified wheel and source distributions.
+
 ## 2.0.0 — 2026-10-23
 
 - Independently implement stable SourceNest release discovery, bounded verified package reading,

@@ -304,7 +304,7 @@ class RuntimeTests(unittest.TestCase):
     def test_package_builder_excludes_private_runtime_and_produces_valid_archive(self):
         result = build_release.build(self.base / "distribution")
         manifest, files = maintenance.package_files(result["package"])
-        self.assertEqual(manifest["version"], "2.0.0")
+        self.assertEqual(manifest["version"], beyin.VERSION)
         self.assertNotIn("config.json", files)
         with zipfile.ZipFile(result["source"]) as archive:
             self.assertIn("setup.py", archive.namelist())
@@ -364,7 +364,7 @@ class RuntimeTests(unittest.TestCase):
         result = subprocess.run([sys.executable, str(PACKAGE / 'setup.py'), '--vault', str(vault), '--state', str(state), '--workspace', str(self.project), '--project', 'demo', '--client', 'kiro', '--apply'], capture_output=True, text=True, encoding='utf-8', check=True, timeout=30)
         self.assertEqual(json.loads(result.stdout)['status'], 'installed')
         self.assertEqual(portable.state_dir(vault), state.resolve())
-        self.assertEqual((vault / '.sourcenest-version').read_text().strip(), '2.0.0')
+        self.assertEqual((vault / '.sourcenest-version').read_text().strip(), beyin.VERSION)
         self.assertTrue((vault / 'beyin.py').exists())
         commands = subprocess.run([sys.executable, str(vault / 'beyin.py'), 'preferences', '--human'], capture_output=True, text=True, check=True)
         self.assertIn('Profile:', commands.stdout)

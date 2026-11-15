@@ -25,7 +25,7 @@ import uuid
 from portable import state_dir
 import knowledge
 
-VERSION = "2.0.0"
+VERSION = "2.0.1"
 ROOT = Path(__file__).resolve().parents[1]
 KINDS = ["decision", "preference", "reported_fact", "proposal", "open_task", "completed_task", "correction", "question"]
 LABELS = dict(zip(KINDS, ["Karar", "Tercih", "Bildirilen bilgi", "Öneri", "Açık iş", "Tamamlandığı bildirilen iş", "Düzeltme", "Soru"]))
