@@ -167,7 +167,7 @@ def _installed_version(root):
     return match.group(1)
 
 
-def update(root, package, checksum=None, check=False, allow_downgrade=False):
+def update(root, package, checksum=None, check=False, allow_downgrade=False, reviewed_hashes=None):
     import beyin
     root = Path(root).resolve()
     manifest, payload = package_files(package, checksum)
@@ -187,6 +187,11 @@ def update(root, package, checksum=None, check=False, allow_downgrade=False):
         baseline = read(root / ".sourcenest-managed.json", {})
         legacy = read(root / ".state/installation.json", {}).get("managed_engine_sha256", {})
         expected = dict(legacy, **baseline)
+        if reviewed_hashes:
+            if any(name not in payload or not re.fullmatch(r"[a-f0-9]{64}", digest)
+                   for name, digest in reviewed_hashes.items()):
+                raise ValueError("Invalid reviewed managed-file hashes")
+            expected.update(reviewed_hashes)
         conflicts, entries = [], []
         for name, after in payload.items():
             path = child(root, name)

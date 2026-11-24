@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.1.0
+
+- Add source-linked project checkpoints, tasks, candidate learning and revision feedback.
+- Find matching passages within a text budget and test retrieval with local expectations.
+- Add safe note revisions, a project triage report, Obsidian link lint and project indexes.
+- Ship an authenticated local web screen, explicit capture and previewed transcript archive.
+- Add a Pi extension, device planning and safer project-local hook reconciliation.
+- Preserve per-project model-processing cutoffs and project-filtered queue processing.
+
+
 ## 2.0.1 — 2026-11-15
 
 - Add PyPI packaging support (`pyproject.toml`, `engine/__init__.py`) for `pip install sourcenest`.

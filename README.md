@@ -1,5 +1,7 @@
 # SourceNest — portable project memory for AI coding assistants
 
+> **SourceNest 2.1:** Project handoffs, revision-checked notes, tasks, retrieval tests, opt-in archive import, Pi support and a local web screen. [Commands and setup](docs/v2.1-guide.md).
+
 > **SourceNest 2.0:** Cross-platform setup, verified package updates with rollback/recovery, seven client integrations, structured notes, companion onboarding and an opt-in advisor are implemented. See the [2.0 guide](docs/v2-guide.md) and [capability/test matrix](docs/avenox-v3-adaptation.md). Native application/provider verification is separate from offline tests.
 
 ## Pick up a project without retelling its history
@@ -76,7 +78,7 @@ python setup.py --vault /absolute/private-vault --workspace /absolute/project --
 python setup.py --vault /absolute/private-vault --workspace /absolute/project --project demo --client codex --client claude --apply
 ```
 
-See the [2.0 guide](docs/v2-guide.md) for all seven clients, native trust steps, private runtime state, update assets and readback. Use a vault outside the public source checkout. This source version has not yet been published as a stable release.
+See the [2.0 guide](docs/v2-guide.md) for all seven clients, native trust steps, private runtime state, update assets and readback. Use a vault outside the public source checkout.
 
 ### Legacy installer (PowerShell)
 

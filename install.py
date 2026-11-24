@@ -25,7 +25,8 @@ CODEX_EVENTS = ("SessionStart", "Stop", "PreCompact", "SessionEnd", "Interrupt")
 CLAUDE_EVENTS = ("SessionStart", "UserPromptSubmit", "Stop", "PreCompact", "SessionEnd")
 # Kept as the public name used by existing scripts and tests.
 EVENTS = CODEX_EVENTS
-MANAGED_ENGINE = ("engine/beyin.py", "engine/Beyin.ps1", "engine/Beyin.cmd", "engine/portable.py", "engine/maintenance.py", "engine/knowledge.py", "engine/advisor.py", "engine/clients.py", "engine/client_bridge.py", "engine/hermes_bridge.py")
+MANAGED_ENGINE = ("engine/beyin.py", "engine/Beyin.ps1", "engine/Beyin.cmd", "engine/portable.py", "engine/maintenance.py", "engine/knowledge.py", "engine/advisor.py", "engine/clients.py", "engine/client_bridge.py", "engine/hermes_bridge.py",
+                  "engine/workflow.py", "engine/vault_tools.py", "engine/local_web.py")
 
 
 def _managed_commands(settings, target, adapter):

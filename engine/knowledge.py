@@ -1,5 +1,6 @@
 """Human-authored Markdown sources, local lookup, and explicit identity setup."""
 from __future__ import annotations
+from collections import Counter
 import json
 from pathlib import Path
 import re
@@ -62,46 +63,157 @@ def create(root, data):
     return {"created": str(path.relative_to(root)), "source_sha256": sha(path.read_bytes()), "model_calls": 0}
 
 
-def sources(root, project):
+def sources(root, project, include_review=False):
     root = Path(root).resolve()
+    from workflow import ledger
     base = project_base(root, project)
+    feedback = ledger(root, project)["feedback"]
     found = []
     for folder in ("notes", "knowledge"):
         directory = base / folder
         if directory.is_symlink():
             raise ValueError("Symlink notes directory")
-        for path in sorted(directory.glob("*.md")):
-            child(base, path.relative_to(base).as_posix())
-            if path.stat().st_size > 200000:
+        for path in sorted(directory.rglob("*.md")):
+            if any(part.startswith(".") for part in path.relative_to(directory).parts):
                 continue
-            data = path.read_bytes()
-            text = data.decode("utf-8-sig")
+            try:
+                child(base, path.relative_to(base).as_posix())
+            except ValueError:
+                continue
+            try:
+                if not path.is_file() or path.stat().st_size > 200000:
+                    continue
+                data = path.read_bytes()
+                text = data.decode("utf-8-sig")
+            except (OSError, UnicodeError):
+                continue
             meta = {}
             if text.startswith(MARKER):
                 first, _, text = text.partition("\n")
-                meta = json.loads(first[len(MARKER):].removesuffix(" -->"))
+                try:
+                    meta = json.loads(first[len(MARKER):].removesuffix(" -->"))
+                except ValueError:
+                    continue
+                if not isinstance(meta, dict):
+                    continue
                 if meta.get("project") != project:
                     continue
-            found.append({"id": sha(path.relative_to(root).as_posix().encode())[:24],
-                          "project": project, "source": path.relative_to(root).as_posix(),
-                          "source_sha256": sha(data), "title": meta.get("title", path.stem),
+            source = path.relative_to(root).as_posix()
+            digest = sha(data)
+            verdict = feedback.get(source, {})
+            if not include_review and (meta.get("validity") == "rejected" or
+                    (verdict.get("source_sha256") == digest and verdict.get("verdict") in ("wrong", "stale"))):
+                continue
+            title = meta.get("title")
+            aliases = meta.get("aliases")
+            if not isinstance(aliases, list) or not all(isinstance(alias, str) for alias in aliases):
+                aliases = []
+            found.append({"id": sha(source.encode())[:24],
+                          "project": project, "source": source,
+                          "source_sha256": digest, "title": title if isinstance(title, str) else path.stem,
                           "body": text, "visibility": meta.get("visibility", "private"),
                           "remote_allowed": meta.get("remote_allowed", False),
-                          "sensitivity": meta.get("sensitivity", "normal"), "aliases": meta.get("aliases", [])})
+                          "sensitivity": meta.get("sensitivity", "normal"), "aliases": aliases})
     return found
 
 
-def lookup(root, project, query="", limit=8):
-    terms = set(re.findall(r"\w+", query.casefold()))
+def tokens(value):
+    value = unicodedata.normalize("NFKD", value.casefold()).replace("ı", "i")
+    value = "".join(c for c in value if not unicodedata.combining(c))
+    return re.findall(r"\w+", value)
+
+
+def passage(body, query, limit):
+    """Choose a bounded window by query term coverage, independent of note length."""
+    if len(body) <= limit:
+        return body
+    terms = set(tokens(query))
+    if not terms or limit < 40:
+        return body[:limit]
+    # Keep original offsets while comparing case/diacritic-insensitive words.
+    hits = [(m.start(), next(iter(tokens(m.group())), "")) for m in re.finditer(r"\w+", body)]
+    hits = [(offset, term) for offset, term in hits if term in terms]
+    if not hits:
+        return body[:limit]
+    counts = Counter()
+    left, best, start = 0, (0, 0), 0
+    for right, (offset, term) in enumerate(hits):
+        counts[term] += 1
+        while offset - hits[left][0] >= limit * 3 // 4:
+            old = hits[left][1]
+            counts[old] -= 1
+            if not counts[old]:
+                del counts[old]
+            left += 1
+        score = (len(counts), right - left + 1)
+        if score > best:
+            best = score
+            start = hits[left][0]
+    start = min(max(0, start - limit // 8), len(body) - limit)
+    return body[start:start + limit]
+
+
+def lookup(root, project, query="", limit=8, budget=None):
+    terms = set(tokens(query))
     ranked = []
     for source in sources(root, project):
-        content = " ".join([source["title"], source["body"], *source["aliases"]]).casefold()
-        score = sum(term in content for term in terms)
+        title_terms = set(tokens(source["title"] + " " + " ".join(source["aliases"])))
+        body_terms = set(tokens(source["body"]))
+        score = 3 * len(terms & title_terms) + len(terms & body_terms)
         if terms and not score:
             continue
         ranked.append((score, source))
     ranked.sort(key=lambda pair: (-pair[0], pair[1]["source"]))
-    return [source for _, source in ranked[:max(1, min(32, limit))]]
+    ranked = [source for _, source in ranked[:max(1, min(32, limit))]]
+    if budget is None:
+        return ranked
+    if not 100 <= budget <= 100000:
+        raise ValueError("Context budget must be 100–100000 characters")
+    result = []
+    for index, source in enumerate(ranked):
+        allocation = budget // (len(ranked) - index)
+        body = passage(source["body"], query, allocation)
+        result.append(dict(source, body=body, truncated=len(body) < len(source["body"])))
+        budget -= len(body)
+    return result
+
+
+def novel(root, project, client, session, records):
+    if not isinstance(session, str) or not session.strip():
+        return records
+    import beyin
+    key = sha(f"{client}:{session}".encode())
+    path = state_dir(root) / "context-deliveries.json"
+    with beyin.lock(path.with_suffix(".lock"), blocking=True) as held:
+        if not held:
+            return records
+        ledger = read(path, {})
+        at = time.time()
+        ledger = {k: entry for k, entry in ledger.items() if at - entry["at"] < 86400}
+        entry = ledger.get(key, {"at": at, "seen": []})
+        seen = set(entry["seen"])
+        output = []
+        for source in records:
+            marker = sha((project + source["id"] + source["source_sha256"] + source["body"]).encode())
+            if marker not in seen:
+                output.append(source)
+                entry["seen"].append(marker)
+                seen.add(marker)
+        ledger[key] = {"at": at, "seen": entry["seen"][-256:]}
+        write(path, dict(sorted(ledger.items(), key=lambda pair: pair[1]["at"])[-128:]))
+    return output
+
+
+def reset_deliveries(root, client, session):
+    if not isinstance(session, str) or not session.strip():
+        return
+    import beyin
+    path = state_dir(root) / "context-deliveries.json"
+    with beyin.lock(path.with_suffix(".lock"), blocking=True) as held:
+        if held and path.is_file():
+            ledger = read(path, {})
+            if ledger.pop(sha(f"{client}:{session}".encode()), None) is not None:
+                write(path, ledger)
 
 
 def sync(root, project=None):
@@ -111,7 +223,10 @@ def sync(root, project=None):
     with beyin.lock(state_dir(root) / "worker.lock") as held:
         if not held:
             raise ValueError("Worker busy; retry sync")
-        write(state_dir(root) / "notes-index.json", index)
+        index_path = state_dir(root) / "notes-index.json"
+        merged = read(index_path, {}) if project else {}
+        merged.update(index)
+        write(index_path, merged)
         counts = {p: beyin.rebuild(root, p) for p in projects}
     return {"synced": counts, "notes": sum(map(len, index.values())), "model_calls": 0}
 

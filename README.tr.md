@@ -1,5 +1,7 @@
 # SourceNest · yapay zekâ kodlama asistanları için taşınabilir proje hafızası
 
+> **SourceNest 2.1:** Oturum devri, sürüm kontrollü notlar, görevler, arama testleri, seçili geçmiş aktarımı, Pi desteği ve yerel web ekranı. [Komut rehberi](docs/v2.1-guide.md).
+
 > **SourceNest 2.0:** Windows/macOS/Linux kurulumu, doğrulanmış paket güncellemesi, geri alma/kurtarma, yedi istemci bağlantısı, yapılandırılmış notlar, tanışma akışı ve isteğe bağlı danışman eklendi. [Kapsam ve test matrisi](docs/avenox-v3-adaptation.md) · [Komut rehberi](docs/v2-guide.md).
 
 ## Yeni kurulumun kısa yolu

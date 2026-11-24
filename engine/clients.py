@@ -8,13 +8,13 @@ import shlex
 import sys
 from portable import child, read, sha, state_dir, write
 
-SUPPORTED = ("codex", "claude", "kiro", "antigravity", "opencode", "omp", "hermes")
+SUPPORTED = ("codex", "claude", "kiro", "antigravity", "opencode", "omp", "hermes", "pi")
 BEGIN, END = "<!-- sourcenest:start -->", "<!-- sourcenest:end -->"
 SHARED = {"AGENTS.md", "CLAUDE.md", ".codex/hooks.json", ".claude/settings.local.json", ".agents/hooks.json", ".sourcenest/clients-manifest.json"}
 
 
 def owned(name):
-    return name in SHARED or name in {".kiro/hooks/sourcenest.json", ".opencode/plugins/sourcenest.js", ".omp/hooks/pre/sourcenest.ts", ".sourcenest/adapters/hermes/__init__.py", ".sourcenest/adapters/hermes/plugin.yaml"} or bool(re.fullmatch(r"(?:\.agents|\.kiro)/skills/sourcenest(?:-doctor|-update)?/SKILL\.md", name))
+    return name in SHARED or name in {".kiro/hooks/sourcenest.json", ".opencode/plugins/sourcenest.js", ".omp/hooks/pre/sourcenest.ts", ".pi/extensions/sourcenest.ts", ".sourcenest/adapters/hermes/__init__.py", ".sourcenest/adapters/hermes/plugin.yaml"} or bool(re.fullmatch(r"(?:\.agents|\.kiro)/skills/sourcenest(?:-doctor|-update)?/SKILL\.md", name))
 
 
 def command(root, client, event, plain=False):
@@ -101,6 +101,31 @@ export default function(pi){
 '''
 
 
+PI = r"""
+export default function(pi) {
+ const started = new Set();
+ const payload = ctx => ({
+  session_id:ctx.sessionManager.getSessionId(), cwd:ctx.cwd
+ });
+ pi.on("before_agent_start", async (event, ctx) => {
+  const p = payload(ctx);
+  const first = !started.has(p.session_id);
+  started.add(p.session_id);
+  const text = await send("pi", first ? "SessionStart" : "UserPromptSubmit", {...p,prompt:event.prompt || ""});
+  if (text) return {message:{customType:"sourcenest-context",content:text,display:false}};
+ });
+ pi.on("session_before_compact", async (_event, ctx) => {
+  await send("pi","PreCompact",payload(ctx));
+ });
+ pi.on("session_shutdown", async (_event, ctx) => {
+  const p = payload(ctx);
+  started.delete(p.session_id);
+  await send("pi","SessionEnd",p);
+ });
+}
+"""
+
+
 def plan(root, selected, workspace=None):
     root = Path(root).resolve()
     location = Path(workspace).resolve() if workspace else root
@@ -117,8 +142,17 @@ def plan(root, selected, workspace=None):
         events = config.setdefault("hooks", {})
         if not isinstance(events, dict):
             raise ValueError("Invalid hook settings")
-        old = read(location / ".sourcenest/clients-manifest.json", {}).get("commands", [])
-        commands = []
+        manifest = read(location / ".sourcenest/clients-manifest.json", {})
+        previous = manifest.get("commands_by_client")
+        # Legacy manifests contain one executable for each installed client (in
+        # the single-client case), or a shared manifest that needs review.
+        old = set(previous.get(client, [])) if previous is not None else set()
+        single = set(manifest.get("clients", [])) & {"codex", "claude"}
+        if previous is None and single == {client}:
+            old.update(manifest.get("commands", []))
+        argv = [sys.executable, str(root / "engine/beyin.py"), "--root", str(root), "hook", "--adapter", client]
+        cmd = shlex.join(argv) if os.name != "nt" else _windows(argv)
+        old.add(cmd)
         for event in ("SessionStart", "UserPromptSubmit", "Stop", "PreCompact", "SessionEnd"):
             groups = events.setdefault(event, [])
             if not isinstance(groups, list):
@@ -128,13 +162,9 @@ def plan(root, selected, workspace=None):
                 handlers = [h for h in group.get("hooks", []) if h.get("command") not in old]
                 if handlers:
                     cleaned.append(dict(group, hooks=handlers))
-            # Use the original transcript adapter for these clients.
-            argv = [sys.executable, str(root / "engine/beyin.py"), "--root", str(root), "hook", "--adapter", client]
-            cmd = shlex.join(argv) if os.name != "nt" else _windows(argv)
-            commands.append(cmd)
-            all_commands.append(cmd)
             cleaned.append({"hooks": [{"type": "command", "command": cmd, "timeout": 15}]})
             events[event] = cleaned
+        all_commands.append((client, cmd))
         changes[path] = (json.dumps(config, indent=2) + "\n").encode()
         changes.setdefault(".sourcenest/clients-manifest.json", b"{}")
     if "kiro" in selected:
@@ -150,6 +180,8 @@ def plan(root, selected, workspace=None):
         changes[".opencode/plugins/sourcenest.js"] = (transport + OPENCODE).encode()
     if "omp" in selected:
         changes[".omp/hooks/pre/sourcenest.ts"] = (transport + OMP).encode()
+    if "pi" in selected:
+        changes[".pi/extensions/sourcenest.ts"] = (transport + PI).encode()
     if "hermes" in selected:
         changes[".sourcenest/adapters/hermes/__init__.py"] = ("import sys\nfrom pathlib import Path\nsys.path.insert(0," + repr(str(root / "engine")) + ")\nfrom hermes_bridge import register as _register\ndef register(ctx):\n    return _register(ctx, Path(" + repr(str(root)) + "))\n").encode()
         changes[".sourcenest/adapters/hermes/plugin.yaml"] = b"name: sourcenest\nversion: 2.0.0\nprovides_hooks:\n  - pre_llm_call\n  - on_session_finalize\n"
@@ -195,7 +227,10 @@ def install(root, selected, check=False, workspace=None):
             raise ValueError("Client/skill conflict: " + ", ".join(conflicts))
         if check:
             return {"status": "plan", "clients": selected, "files": sorted(changes), "trust": "Review client hooks/workspace trust yourself"}
-        changes[".sourcenest/clients-manifest.json"] = json.dumps({"clients": sorted(set(selected) | set(baseline.get("clients", []))), "commands": sorted(set(commands) | set(baseline.get("commands", []))),
+        owned_commands = dict(baseline.get("commands_by_client", {}))
+        for client, cmd in commands:
+            owned_commands[client] = [cmd]
+        changes[".sourcenest/clients-manifest.json"] = json.dumps({"commands_by_client": owned_commands, "clients": sorted(set(selected) | set(baseline.get("clients", []))), "commands": sorted({cmd for _, cmd in commands} | set(baseline.get("commands", []))),
                                                                  "files": dict(baseline.get("files", {}), **{n: sha(d) for n, d in changes.items()})}, indent=2).encode()
         journal_path = state_dir(root) / ("clients-" + sha(str(location).encode())[:20] + ".json")
         journal = read(journal_path, {})
@@ -247,3 +282,58 @@ def restore(root, recover=False, workspace=None):
         journal["status"] = "recovered" if recover else "rolled_back"
         write(journal_path, journal)
     return {"status": journal["status"]}
+
+
+def repair_hook(root, client, file, old_root, old_python, apply=False):
+    """Replace exact previously generated SourceNest commands in one hook file."""
+    import beyin
+    file = Path(file).absolute()
+    if not file.is_file() or file.is_symlink():
+        raise ValueError("Choose an existing, regular hook settings file")
+    old_root = Path(old_root)
+    old_python = Path(old_python)
+    if not old_root.is_absolute() or not old_python.is_absolute():
+        raise ValueError("Use absolute previous vault and Python paths")
+    previous_script = str(old_root / "engine/beyin.py")
+    old_args = [str(old_python), previous_script, "--root", str(old_root), "hook", "--adapter", client]
+    new_script = str(root / "engine/beyin.py")
+    new_args = [sys.executable, new_script, "--root", str(root), "hook", "--adapter", client]
+    if os.name == "nt":
+        def legacy(python, script):
+            python = python.replace("'", "''")
+            script = script.replace("'", "''")
+            suffix = " --adapter claude" if client == "claude" else ""
+            return f"""powershell.exe -NoProfile -NonInteractive -Command "& '{python}' -X utf8 '{script}' hook{suffix}" """
+        replacements = {_windows(old_args): _windows(new_args),
+                        legacy(str(old_python), previous_script).rstrip(): legacy(sys.executable, new_script).rstrip()}
+    else:
+        suffix = ["--adapter", client] if client == "claude" else []
+        replacements = {shlex.join(old_args): shlex.join(new_args),
+                        shlex.join([str(old_python), previous_script, "hook", *suffix]):
+                        shlex.join([sys.executable, new_script, "hook", *suffix])}
+    with beyin.lock(state_dir(root) / "worker.lock", blocking=True) as held:
+        if not held:
+            raise ValueError("Worker busy")
+        previous = file.read_bytes()
+        if len(previous) > 1000000:
+            raise ValueError("Hook settings exceeds size limit")
+        settings = json.loads(previous)
+        count = 0
+        for groups in settings.get("hooks", {}).values():
+            if not isinstance(groups, list):
+                continue
+            for group in groups:
+                for hook in group.get("hooks", []):
+                    old = hook.get("command")
+                    if old in replacements and replacements[old] != old:
+                        hook["command"] = replacements[old]
+                        count += 1
+        result = {"status": "planned" if count else "noop", "changes": count}
+        if apply and count:
+            backup = state_dir(root) / "hook-backups" / (sha(str(file).encode() + previous) + ".json")
+            write(backup, previous)
+            if file.read_bytes() != previous:
+                raise ValueError("Hook settings changed since inspection")
+            write(file, settings)
+            result.update(status="updated", backup=str(backup), trust="Review changed hooks in the client")
+        return result

@@ -14,6 +14,7 @@ PACKAGE = Path(__file__).resolve().parent
 def payload_files():
     import install
     files = {name: (PACKAGE / name).read_bytes() for name in install.MANAGED_ENGINE}
+    files["engine/__init__.py"] = (PACKAGE / "engine/__init__.py").read_bytes()
     files["beyin.py"] = (PACKAGE / "beyin.py").read_bytes()
     files[".sourcenest-version"] = (beyin.VERSION + "\n").encode()
     files["Beyni Guncelle.cmd"] = b'@echo off\r\ncall "%~dp0engine\\Beyin.cmd" update\r\nexit /b %ERRORLEVEL%\r\n'
@@ -39,14 +40,14 @@ def build(destination):
     write(Path(str(path) + ".sha256"), (sha(path.read_bytes()) + "  " + path.name + "\n").encode())
     # Fresh-install distribution: explicit source-file whitelist, never a working-tree archive.
     source = destination / ("SourceNest-" + beyin.VERSION + "-source.zip")
-    names = ["setup.py", "install.py", "build_release.py", "beyin.py", "config.example.json", "projects.example.json", "vault.gitignore", "README.md", "README.tr.md", "PROFILE.md", "RULES.md", "LICENSE", "CREDITS.md", "PRIVACY.md", "setup.ps1", "setup.cmd", "CONTRIBUTING.md", "VALIDATION.md"]
+    names = ["setup.py", "install.py", "build_release.py", "beyin.py", "config.example.json", "projects.example.json", "vault.gitignore", "README.md", "README.tr.md", "PROFILE.md", "RULES.md", "LICENSE", "CREDITS.md", "PRIVACY.md", "setup.ps1", "setup.cmd", "CONTRIBUTING.md", "VALIDATION.md", "pyproject.toml"]
     with zipfile.ZipFile(source, "w", zipfile.ZIP_DEFLATED) as archive:
         for name in names:
             archive.write(PACKAGE / name, name)
         for name, data in files.items():
             if name.startswith("engine/"):
                 archive.writestr(name, data)
-        for name in ("docs/integrations.md", "docs/avenox-v3-adaptation.md", "docs/v2-guide.md", "docs/architecture.svg", "tests/test_beyin.py", "tests/test_public_install.py", "tests/test_runtime.py", ".github/workflows/test.yml"):
+        for name in ("docs/integrations.md", "docs/avenox-v3-adaptation.md", "docs/v2-guide.md", "docs/architecture.svg", "tests/test_beyin.py", "tests/test_public_install.py", "tests/test_runtime.py", "tests/test_workflow.py", "docs/v2.1-guide.md", "docs/demo.svg", ".github/workflows/test.yml"):
             archive.write(PACKAGE / name, name)
     write(Path(str(source) + ".sha256"), (sha(source.read_bytes()) + "  " + source.name + "\n").encode())
     return {"package": str(path), "source": str(source), "version": beyin.VERSION}
